@@ -5,15 +5,23 @@ import sys
 import threading
 import time
 from datetime import datetime, timedelta
-
+from flask import Flask, render_template, jsonify, request
 import FlowMasterClasses
 
 # CONFIGURATION CONSTANTS
+current_username = None  # Variable to store the current username
+
+app = Flask(__name__)  # Initialize the Flask app
+
+# Function to handle user logout
+def handle_logout():
+    global current_username  # Use the global variable
+    current_username = None  # Clear the current username
+    # TO IMPLEMENT LOGIC TO DELETE SESSION COOKIE
+
 MONITOR_SERVER = True  # Flag to control monitoring server status
 SERVICE_USERS = True  # Flag to control user service status
-IP = socket.gethostbyname(
-    socket.gethostname()
-)  # Get the local machine's IP address automatically
+IP = socket.gethostbyname(socket.gethostname())  # Get the local machine's IP address automatically
 
 # Ports for content servers and routing
 PORTS = [8000, 8001, 8002]
@@ -43,13 +51,12 @@ active_users = {
     port: {} for port in PORTS + [MONITORING_PORT]
 }  # Track active users per port
 denied_users = {}  # Track users we want to deny access
-users_lock = (
-    threading.Lock()
-)  # Lock to protect the active_users dictionary during concurrent access
+
+users_lock = threading.Lock()  # Lock to protect the active_users dictionary during concurrent access
+
 client_sockets = {}  # Dictionary to hold client sockets
-connected_clients = (
-    set()
-)  # Set of unique client identifiers that have connected at least once
+connected_clients = set()  # Set of unique client identifiers that have connected at least once
+
 clients_lock = (
     threading.Lock()
 )  # Lock to protect the connected_clients set during concurrent access
@@ -61,6 +68,7 @@ logger = FlowMasterClasses.Logger("../server.log")  # Set up logging
 
 
 def test_ports():
+
     """
     Test if all required ports are available before starting servers.
     Returns:
@@ -77,6 +85,7 @@ def test_ports():
 
 
 def signal_handler(*_):
+
     """
     Handle graceful shutdown on SIGINT (Ctrl+C).
     This ensures that the program exits cleanly when terminated by user.
@@ -99,6 +108,7 @@ def signal_handler(*_):
 
 
 def update_active_users():
+
     """
     Background task to maintain active user counts.
     Periodically checks for and removes inactive users based on
@@ -129,6 +139,7 @@ def update_active_users():
 
 
 def get_server_loads():
+
     """
     Get the current load (number of active users) of each content server.
     Returns:
@@ -139,6 +150,7 @@ def get_server_loads():
 
 
 def get_monitoring_data():
+
     """
     Get comprehensive monitoring data for all servers.
     Formats data for the monitoring dashboard, including total counts
@@ -161,6 +173,7 @@ def get_monitoring_data():
 
 
 def select_target_port():
+
     """
     Select the least loaded port for new connections (load balancing).
     Uses a simple algorithm: choose the server with the fewest active users.
@@ -183,6 +196,7 @@ def select_target_port():
 
 
 def send_redirect(client_socket, port):
+
     """
     Send HTTP redirect response to client.
     Creates and sends a 302 Found HTTP response directing the client
@@ -200,6 +214,7 @@ def send_redirect(client_socket, port):
 
 
 def send_file(file_path, client_socket):
+
     """
     Send file content to client with proper HTTP headers.
     Args:
@@ -236,6 +251,7 @@ def send_file(file_path, client_socket):
 
 
 def handle_stats_request(client_socket):
+
     """
     Handle requests for monitoring statistics.
     Sends JSON-formatted monitoring data to the client.
@@ -257,7 +273,30 @@ def handle_stats_request(client_socket):
     logger.log_info("Sent monitoring stats")
 
 
+@app.route('/user-info', methods=['GET'])
+def user_info():
+    """Endpoint to fetch the current username."""
+    logger.log_info(f"User info request with session_id: {session_id}")  # Log session ID for debugging
+
+    # Get session ID from cookies
+    session_id = request.cookies.get('session_id')
+    
+    # Debug log to see what session ID we're getting
+    logger.log_info(f"User info request with session_id: {session_id}")
+    
+    # Get username from session
+    username = user_session_manager.get_username(session_id) if session_id else None  # Get username from session
+    logger.log_info(f"Found username: {username}")  # Log the found username for debugging
+
+    
+    # Debug log to see what username we found
+    logger.log_info(f"Found username: {username}")
+    
+    return jsonify({"username": username if username else "Unknown"})
+    
 def handle_user_request(client_socket, file_path, port):
+
+
     """
     Handle incoming user HTTP requests based on the server type and request path.
     This function decodes the request, identifies the client, updates activity tracking,
@@ -410,7 +449,24 @@ def handle_monitor_request(client_socket, file_path, port):
         # Root path or empty path should serve login if not authenticated
         if path == "/" or path == "":
             if is_authenticated:
-                send_file(FILE_PATHS[3], client_socket)  # Serve tracker.html
+                # Get the tracker.html file content
+                try:
+                    with open(FILE_PATHS[3], "rb") as file:
+                        content = file.read()
+                    
+                    # Send the content with the current_username header
+                    response = (
+                        b"HTTP/1.1 200 OK\r\n"
+                        b"Content-Type: text/html\r\n"
+                        b"Content-Length: " + str(len(content)).encode() + b"\r\n"
+                        b"X-Username: " + str(current_username).encode() + b"\r\n"
+                        b"\r\n" + content
+                    )
+                    client_socket.sendall(response)
+                    logger.log_info(f"Sent tracker.html with username: {current_username}")
+                except Exception as e:
+                    logger.log_error(f"Error sending tracker.html: {str(e)}")
+                    send_file(FILE_PATHS[3], client_socket)  # Fallback
             else:
                 send_file(FILE_PATHS[4], client_socket)  # Serve login.html
             return True
@@ -418,7 +474,24 @@ def handle_monitor_request(client_socket, file_path, port):
         # Explicitly handle tracker.html request
         if path == "/tracker.html":
             if is_authenticated:
-                send_file(FILE_PATHS[3], client_socket)  # Serve tracker.html
+                # Get the tracker.html file content
+                try:
+                    with open(FILE_PATHS[3], "rb") as file:
+                        content = file.read()
+                    
+                    # Send the content with the current_username header
+                    response = (
+                        b"HTTP/1.1 200 OK\r\n"
+                        b"Content-Type: text/html\r\n"
+                        b"Content-Length: " + str(len(content)).encode() + b"\r\n"
+                        b"X-Username: " + str(current_username).encode() + b"\r\n"
+                        b"\r\n" + content
+                    )
+                    client_socket.sendall(response)
+                    logger.log_info(f"Sent tracker.html with username: {current_username}")
+                except Exception as e:
+                    logger.log_error(f"Error sending tracker.html: {str(e)}")
+                    send_file(FILE_PATHS[3], client_socket)  # Fallback
             else:
                 send_redirect_to_login(client_socket)  # Redirect to log in
             return True
@@ -436,6 +509,7 @@ def handle_monitor_request(client_socket, file_path, port):
                 send_redirect_to_login(client_socket)
             return True
 
+        # TO IMPLEMENT NEED FOR USERNAMES.user_library[username][1] == 1
         if "/disconnect" in path:  # Handle client leave requests
             if not is_authenticated:
                 send_redirect_to_login(client_socket)
@@ -495,6 +569,7 @@ def handle_monitor_request(client_socket, file_path, port):
 
 
 def send_redirect_to_login(client_socket):
+
     """Send HTTP redirect to login page
     Args:
         client_socket (socket): The client's socket connection.
@@ -517,6 +592,8 @@ def handle_login_request(client_socket, data):
     Returns:
         bool: True if request was handled successfully.
     """
+    global current_username  # Access the global variable
+
     try:
         # Extract the request body
         body = data.split("\r\n\r\n")[1]
@@ -530,8 +607,11 @@ def handle_login_request(client_socket, data):
             username in USERNAMES.user_library
             and USERNAMES.user_library[username][0] == password
         ):
+            # Update current_username when login is successful
+            current_username = username
+
             # Generate a session ID
-            session_id = user_session_manager.create_session(username)
+            session_id = user_session_manager.create_session(current_username)
             response = {
                 "success": True,
                 "message": "Login successful",
@@ -542,13 +622,14 @@ def handle_login_request(client_socket, data):
             headers = (
                 f"HTTP/1.1 200 OK\r\n"
                 f"Content-Type: application/json\r\n"
-                f"Set-Cookie: session_id={session_id}; Path=/; HttpOnly\r\n"
+                f"Set-Cookie: session_id={session_id}; Path=/; HttpOnly; SameSite=Lax\r\n"
                 f"Content-Length: {len(response_json)}\r\n"
                 f"\r\n"
             )
 
             client_socket.sendall((headers + response_json).encode())
-            logger.log_info(f"User  {username} logged in successfully")
+            logger.log_info(f"User {username} logged in successfully")
+            current_username = username
         else:
             # Send failure response
             response = {"success": False, "message": "Invalid username or password"}
@@ -578,6 +659,7 @@ def handle_login_request(client_socket, data):
 
 
 def monitoring_server():
+
     """
     Start the monitoring server that provides the dashboard and stats API.
     This server runs on its own thread and handles requests for monitoring data.
@@ -603,6 +685,7 @@ def monitoring_server():
 
 
 def start_routing_server():
+
     """
     Start the main routing server (load balancer).
     This is the main entry point for clients and redirects them to the
@@ -634,6 +717,7 @@ def start_routing_server():
 
 
 def static_server(port, file_path):
+
     """
     Start a static content server on a specific port.
     Each static server serves one HTML file and handles client tracking.
@@ -656,6 +740,7 @@ def static_server(port, file_path):
 
 
 def start_static_servers():
+
     """
     Start all static content servers in separate threads.
     Creates one server for each port/file pair defined in PORTS and FILE_PATHS.
@@ -664,7 +749,6 @@ def start_static_servers():
         threading.Thread(
             target=lambda p=port, f=file_path: static_server(p, f)
         ).start()  # Create a new thread for each static server
-
 
 def main():
     """
@@ -700,6 +784,13 @@ def main():
     start_routing_server()
 
 
+def fetchCurrentUser(session_id):
+    """Fetch the current username based on the session ID."""
+    if user_session_manager.validate_session(session_id):
+        return user_session_manager.get_username(session_id)
+    return None
+
 # Entry point when script is run directly
+
 if __name__ == "__main__":
     main()
