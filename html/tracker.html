@@ -139,8 +139,10 @@
     <h1>Multi-Port Activity Monitor</h1>
     <button id="logoutButton" onclick="logout()">Logout</button>
     <p>Current User: <span id="currentUser">Loading...</span></p>
-    fetchCurrentUser();
-
+    <script>
+        // Call fetchCurrentUser when the page loads
+        fetchCurrentUser();
+    </script>
 
     <div id="serverInfo">
         <p>Monitor running on IP: <span id="serverIp"></span></p>
@@ -261,14 +263,22 @@
         // Get current user information
         async function fetchCurrentUser() {
             try {
+                console.log("Fetching user info...");
                 const response = await fetch('/user-info');
-                if (!response.ok) throw new Error('Failed to fetch user info');
+                console.log("Response status:", response.status);
+                
+                if (!response.ok) {
+                    console.error('Failed to fetch user info:', response.statusText);
+                    document.getElementById('currentUser').textContent = 'Error';
+                    return;
+                }
                 
                 const data = await response.json();
+                console.log("Received user data:", data);
                 document.getElementById('currentUser').textContent = data.username;
             } catch (error) {
                 console.error('Error fetching user info:', error);
-                document.getElementById('currentUser').textContent = 'Unknown';
+                document.getElementById('currentUser').textContent = 'Error';
             }
         }
 

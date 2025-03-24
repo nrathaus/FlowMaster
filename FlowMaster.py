@@ -5,7 +5,7 @@ import sys
 import threading
 import time
 from datetime import datetime, timedelta
-from flask import Flask, render_template  # Import Flask and render_template
+from flask import Flask, render_template, jsonify, request
 import FlowMasterClasses
 
 # CONFIGURATION CONSTANTS
@@ -276,7 +276,23 @@ def handle_stats_request(client_socket):
 @app.route('/user-info', methods=['GET'])
 def user_info():
     """Endpoint to fetch the current username."""
-    return jsonify({"username": current_username if current_username else "Unknown"})
+    logger.log_info(f"User info request with session_id: {session_id}")  # Log session ID for debugging
+
+    # Get session ID from cookies
+    session_id = request.cookies.get('session_id')
+    
+    # Debug log to see what session ID we're getting
+    logger.log_info(f"User info request with session_id: {session_id}")
+    
+    # Get username from session
+    username = user_session_manager.get_username(session_id) if session_id else None  # Get username from session
+    logger.log_info(f"Found username: {username}")  # Log the found username for debugging
+
+    
+    # Debug log to see what username we found
+    logger.log_info(f"Found username: {username}")
+    
+    return jsonify({"username": username if username else "Unknown"})
     
 def handle_user_request(client_socket, file_path, port):
 
@@ -606,7 +622,7 @@ def handle_login_request(client_socket, data):
             headers = (
                 f"HTTP/1.1 200 OK\r\n"
                 f"Content-Type: application/json\r\n"
-                f"Set-Cookie: session_id={session_id}; Path=/; HttpOnly\r\n"
+                f"Set-Cookie: session_id={session_id}; Path=/; HttpOnly; SameSite=Lax\r\n"
                 f"Content-Length: {len(response_json)}\r\n"
                 f"\r\n"
             )
