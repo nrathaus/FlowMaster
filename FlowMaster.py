@@ -5,7 +5,7 @@ import sys
 import threading
 import time
 from datetime import datetime, timedelta
-from flask import Flask  # Import Flask and render_template
+from flask import Flask, render_template  # Import Flask and render_template
 import FlowMasterClasses
 
 # CONFIGURATION CONSTANTS
@@ -273,7 +273,13 @@ def handle_stats_request(client_socket):
     logger.log_info("Sent monitoring stats")
 
 
+@app.route('/user-info', methods=['GET'])
+def user_info():
+    """Endpoint to fetch the current username."""
+    return jsonify({"username": current_username if current_username else "Unknown"})
+    
 def handle_user_request(client_socket, file_path, port):
+
 
     """
     Handle incoming user HTTP requests based on the server type and request path.
@@ -376,7 +382,6 @@ def handle_user_request(client_socket, file_path, port):
 
 
 def handle_monitor_request(client_socket, file_path, port):
-
     """
     Handle incoming monitor HTTP requests based on the server type and request path.
     This function decodes the request, identifies the client, updates activity tracking,
@@ -428,7 +433,24 @@ def handle_monitor_request(client_socket, file_path, port):
         # Root path or empty path should serve login if not authenticated
         if path == "/" or path == "":
             if is_authenticated:
-                send_file(FILE_PATHS[3], client_socket)  # Serve tracker.html
+                # Get the tracker.html file content
+                try:
+                    with open(FILE_PATHS[3], "rb") as file:
+                        content = file.read()
+                    
+                    # Send the content with the current_username header
+                    response = (
+                        b"HTTP/1.1 200 OK\r\n"
+                        b"Content-Type: text/html\r\n"
+                        b"Content-Length: " + str(len(content)).encode() + b"\r\n"
+                        b"X-Username: " + str(current_username).encode() + b"\r\n"
+                        b"\r\n" + content
+                    )
+                    client_socket.sendall(response)
+                    logger.log_info(f"Sent tracker.html with username: {current_username}")
+                except Exception as e:
+                    logger.log_error(f"Error sending tracker.html: {str(e)}")
+                    send_file(FILE_PATHS[3], client_socket)  # Fallback
             else:
                 send_file(FILE_PATHS[4], client_socket)  # Serve login.html
             return True
@@ -436,7 +458,24 @@ def handle_monitor_request(client_socket, file_path, port):
         # Explicitly handle tracker.html request
         if path == "/tracker.html":
             if is_authenticated:
-                send_file(FILE_PATHS[3], client_socket)  # Serve tracker.html
+                # Get the tracker.html file content
+                try:
+                    with open(FILE_PATHS[3], "rb") as file:
+                        content = file.read()
+                    
+                    # Send the content with the current_username header
+                    response = (
+                        b"HTTP/1.1 200 OK\r\n"
+                        b"Content-Type: text/html\r\n"
+                        b"Content-Length: " + str(len(content)).encode() + b"\r\n"
+                        b"X-Username: " + str(current_username).encode() + b"\r\n"
+                        b"\r\n" + content
+                    )
+                    client_socket.sendall(response)
+                    logger.log_info(f"Sent tracker.html with username: {current_username}")
+                except Exception as e:
+                    logger.log_error(f"Error sending tracker.html: {str(e)}")
+                    send_file(FILE_PATHS[3], client_socket)  # Fallback
             else:
                 send_redirect_to_login(client_socket)  # Redirect to log in
             return True
@@ -530,7 +569,6 @@ def send_redirect_to_login(client_socket):
 
 
 def handle_login_request(client_socket, data):
-
     """Handle login POST requests
     Args:
         client_socket (socket): The client's socket connection.
@@ -538,7 +576,7 @@ def handle_login_request(client_socket, data):
     Returns:
         bool: True if request was handled successfully.
     """
-    global current_username  # Add this line to access the global variable
+    global current_username  # Access the global variable
 
     try:
         # Extract the request body
@@ -554,10 +592,10 @@ def handle_login_request(client_socket, data):
             and USERNAMES.user_library[username][0] == password
         ):
             # Update current_username when login is successful
-            current_username = username  # Add this line to update the username
+            current_username = username
 
             # Generate a session ID
-            session_id = user_session_manager.create_session(username)
+            session_id = user_session_manager.create_session(current_username)
             response = {
                 "success": True,
                 "message": "Login successful",
@@ -575,6 +613,7 @@ def handle_login_request(client_socket, data):
 
             client_socket.sendall((headers + response_json).encode())
             logger.log_info(f"User {username} logged in successfully")
+            current_username = username
         else:
             # Send failure response
             response = {"success": False, "message": "Invalid username or password"}
@@ -695,9 +734,7 @@ def start_static_servers():
             target=lambda p=port, f=file_path: static_server(p, f)
         ).start()  # Create a new thread for each static server
 
-
 def main():
-
     """
     Main entry point for the server application.
     Tests ports, sets up signal handling, starts all servers,
@@ -731,6 +768,13 @@ def main():
     start_routing_server()
 
 
+def fetchCurrentUser(session_id):
+    """Fetch the current username based on the session ID."""
+    if user_session_manager.validate_session(session_id):
+        return user_session_manager.get_username(session_id)
+    return None
+
 # Entry point when script is run directly
+
 if __name__ == "__main__":
     main()
