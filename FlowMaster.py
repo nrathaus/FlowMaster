@@ -469,17 +469,15 @@ def handle_monitor_request(client_socket, file_path, port):
         if path == "/tracker.html":
             if is_authenticated:
                 # Get the tracker.html file content
-                send_file(FILE_PATHS['tracker'], client_socket)  # Fallback
-                logger.log_info(
-                    f"Sent tracker.html with username: {current_username}"
-                )
+                send_file(FILE_PATHS["tracker"], client_socket)  # Fallback
+                logger.log_info(f"Sent tracker.html with username: {current_username}")
             else:
                 send_redirect_to_login(client_socket)  # Redirect to log in
             return True
 
         # Explicitly handle login.html request
         if path == "/login.html":
-            send_file(FILE_PATHS['login'], client_socket)  # Always serve login page
+            send_file(FILE_PATHS["login"], client_socket)  # Always serve login page
             return True
 
         # Handle stats request (for authenticated users only)
@@ -530,7 +528,7 @@ def handle_monitor_request(client_socket, file_path, port):
 
         # If we are authenticated and we are asked for /user-info return it
         if is_authenticated and path == "/user-info":
-            response_json = json.dumps({'username': current_username})
+            response_json = json.dumps({"username": current_username})
 
             headers = (
                 f"HTTP/1.1 200 OK\r\n"
@@ -679,7 +677,7 @@ def monitoring_server():
             threading.Thread(  # Handle each request in a separate thread
                 target=lambda: handle_monitor_request(
                     client_socket,
-                    FILE_PATHS['login'],
+                    FILE_PATHS["login"],
                     MONITORING_PORT,  # Default to login page
                 )
             ).start()
@@ -743,7 +741,7 @@ def start_static_servers():
     Start all static content servers in separate threads.
     Creates one server for each port/file pair defined in PORTS and FILE_PATHS.
     """
-    files = [FILE_PATHS['index1'], FILE_PATHS['index2'], FILE_PATHS['index3']]
+    files = [FILE_PATHS["index1"], FILE_PATHS["index2"], FILE_PATHS["index3"]]
     for port, file_path in zip(PORTS, files):  # Exclude monitoring page
         threading.Thread(
             target=lambda p=port, f=file_path: static_server(p, f)
