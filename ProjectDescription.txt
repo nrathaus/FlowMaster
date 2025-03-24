@@ -1,0 +1,231 @@
+# Project Description as of 17/03/2025
+
+Overview: This is a multithreaded server that handles multiple client requests at once. It serves HTML files from different ports and directs clients to the right server based on current load. It keeps track of active users and removes inactive ones. The system includes a monitoring server to track real-time user activity and server load, implements a delay mechanism for routing to ensure balanced load distribution, and features a secure login system with authentication and session management.
+
+Technical Architecture:
+- Uses TCP sockets for reliable client-server communication
+- Implements thread-based concurrency for handling multiple simultaneous connections
+- Maintains shared state with thread-safe mechanisms
+- Provides load balancing through a routing server architecture
+- Implements heartbeat mechanism for user activity tracking
+- Includes a monitoring server for real-time statistics with authenticated access
+- Implements a delay mechanism in the routing server to ensure even distribution
+- Features a secure login system with username/password authentication and session management
+
+What it does:
+1. Port Check: Ensures all required ports are available before startup.
+2. Static Servers: Serves HTML files from different ports.
+3. Routing Server: A main server (port ROUTING_PORT) that sends clients to the least busy server with a delay mechanism.
+4. Monitoring Server: Provides real-time data about server load and active users behind authentication.
+5. User Tracking: Regularly updates the list of active users and removes inactive ones.
+6. Authentication: Implements secure login with username/password verification.
+7. Session Management: Tracks authenticated sessions using session IDs and cookies.
+8. User Management: Allows administrators to disconnect users and deny access.
+9. Graceful Shutdown: When stopped, it logs active users before exiting.
+
+Main Components:
+1. Socket (socket module):
+   - Used for network communication
+   - Implements TCP protocol for reliable data transfer
+   - Handles client connections and data transmission
+
+2. Threading (threading module):
+   - Enables concurrent handling of multiple clients
+   - Provides thread-safe mechanisms (Lock) for shared resource access
+   - Runs background tasks for user tracking
+
+3. Signal (signal module):
+   - Handles system signals for graceful shutdown
+   - Ensures proper cleanup on program termination
+
+4. Time/Datetime:
+   - Manages user session timeouts
+   - Tracks user activity timestamps
+   - Handles periodic maintenance tasks
+   - Introduces delay in routing to optimize load distribution
+
+5. Logging:
+   - Records server activities and errors
+   - Provides debugging information
+   - Tracks user connections and server state
+
+6. Authentication:
+   - Validates user credentials from SQLite database
+   - Manages session tokens
+   - Provides access control to monitoring dashboard
+
+7. Session Management:
+   - Tracks authenticated sessions
+   - Uses cookies for session persistence
+   - Implements timeouts for security
+
+8. Database Integration:
+   - Uses SQLite for user credential storage
+   - Retrieves username, password, and permission data
+   - Supports the authentication system
+
+Why TCP instead of UDP?
+- TCP Benefits:
+  * Guaranteed delivery of data
+  * Automatic packet ordering
+  * Flow control and congestion control
+  * Connection-oriented communication
+  * Error checking and recovery
+- UDP would be unsuitable because:
+  * No guarantee of packet delivery
+  * No packet ordering
+  * No connection state tracking
+  * No flow control
+
+Key Functions Explained:
+test_ports():
+- Purpose: Validates port availability before server startup
+- Process: Attempts to bind to each required port
+- Error handling: Logs and returns False if any port is unavailable
+- Importance: Prevents startup failures due to port conflicts
+
+parse_user_db():
+- Purpose: Loads user credentials from SQLite database
+- Process: Connects to database and queries UserPassPerm table
+- Output: Returns dictionary with username as key and [password, permission] as value
+- Error handling: Handles SQLite errors and returns empty dictionary on failure
+
+signal_handler():
+- Purpose: Handles system interrupts (Ctrl+C)
+- Process: Initiates graceful shutdown sequence
+- Importance: Ensures proper cleanup and resource release
+
+update_active_users():
+- Purpose: Maintains accurate user activity tracking
+- Process:
+  * Runs periodically (HEARTBEAT_INTERVAL)
+  * Checks last activity timestamp for each user
+  * Removes users inactive beyond TIMEOUT_THRESHOLD
+- Thread safety: Uses users_lock for safe state updates
+
+get_server_loads():
+- Purpose: Tracks current load on each server
+- Process: Counts active users per port
+- Thread safety: Uses users_lock for consistent readings
+
+get_monitoring_data():
+- Purpose: Provides real-time statistics of server load
+- Process: Compiles data from active_users dictionary
+- Output: JSON response containing load statistics
+- Thread safety: Uses users_lock for accurate readings
+
+select_target_port():
+- Purpose: Implements load balancing logic with delay mechanism
+- Process:
+  * Gets current server loads
+  * Identifies servers with minimum load
+  * Selects lowest port number among the least loaded servers
+  * Ensures delay mechanism is respected for fairness
+- Optimization: Favors lower port numbers for consistent distribution
+
+send_redirect():
+- Purpose: Implements HTTP redirection
+- Process: Sends 302 Found response with new location
+- Format: Follows HTTP/1.1 specification for redirects
+
+send_file():
+- Purpose: Serves static HTML content
+- Process:
+  * Reads file content
+  * Generates HTTP response headers
+  * Sends complete response to client
+- Error handling: Handles file not found and server errors
+
+handle_user_request():
+- Purpose: Processes regular user requests
+- Process:
+  * Parses incoming HTTP requests
+  * Identifies clients using ID or IP
+  * Handles specialized requests (heartbeat, leave)
+  * Routes or serves content based on port
+- Thread safety: Uses multiple locks for shared state access
+- Security: Identifies and blocks denied users
+
+handle_monitor_request():
+- Purpose: Processes monitoring dashboard requests
+- Process:
+  * Verifies authentication
+  * Serves monitoring interface
+  * Manages user sessions
+  * Provides stats and admin functions
+- Security: Redirects unauthenticated users to login
+- Admin features: Supports disconnecting users and adding them to denied_users
+
+handle_login_request():
+- Purpose: Manages user authentication
+- Process:
+  * Validates credentials against USERNAMES dictionary from database
+  * Creates session token on successful login
+  * Sets session cookie
+  * Redirects to monitoring dashboard
+- Security: Returns 401 on failed authentication
+
+send_redirect_to_login():
+- Purpose: Redirects unauthenticated users
+- Process: Sends 302 Found response to login page
+- Security: Ensures secured access to monitoring features
+
+start_routing_server():
+- Purpose: Implements main load balancer with delay mechanism
+- Process:
+  * Accepts incoming connections
+  * Creates new thread for each client
+  * Delegates to handle_request()
+  * Implements routing delay for load balancing
+- Configuration: Uses ROUTING_PORT
+
+monitoring_server():
+- Purpose: Runs the monitoring dashboard
+- Process:
+  * Accepts connections
+  * Manages authentication
+  * Provides monitoring interface and stats
+- Security: Requires login for access
+
+static_server():
+- Purpose: Serves static content
+- Process:
+  * Binds to specified port
+  * Accepts connections
+  * Serves associated HTML file
+- Thread safety: Creates new thread per client
+
+main():
+- Purpose: Application entry point
+- Process:
+  * Validates ports
+  * Sets up signal handling
+  * Starts user tracking
+  * Initializes all servers
+- Error handling: Exits on port test failure
+
+Configuration Constants Explained:
+- IP: Server's IP address (automatically detected)
+- PORTS: Available ports for static content (8000, 8001, 8002)
+- ROUTING_PORT: Load balancer port (8080)
+- MONITORING_PORT: Monitoring server port (8081)
+- SOCKET_TIMEOUT: Client connection timeout (5 seconds)
+- FILE_PATHS: Locations of HTML files to serve and database file
+- USERNAMES: Dictionary of allowed username/password pairs loaded from database
+- HEARTBEAT_INTERVAL: User activity check frequency (2.5 seconds)
+- TIMEOUT_THRESHOLD: User inactivity limit (1800 seconds)
+- DELAY_BETWEEN_ROUTING: Delay applied before redirecting clients to ensure balanced distribution (0.35 seconds)
+
+Shared State Management:
+- active_users: Dictionary tracking user activity per port
+- denied_users: Dictionary tracking users denied access
+- users_lock: Thread lock for active_users access
+- client_sockets: Dictionary tracking active socket connections
+- connected_clients: Set of all client identifiers
+- clients_lock: Thread lock for connected_clients access
+- authenticated_sessions: Dictionary tracking valid login sessions
+
+Logging Configuration:
+- Logs to both file (server.log) and console
+- Includes timestamps and log levels
+- Captures important events and errors
