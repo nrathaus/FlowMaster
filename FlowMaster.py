@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 import json
 import signal
 import socket
@@ -5,13 +6,10 @@ import sys
 import threading
 import time
 from datetime import datetime, timedelta
-from flask import Flask, render_template, jsonify, request
 import FlowMasterClasses
 
 # CONFIGURATION CONSTANTS
 current_username = None  # Variable to store the current username
-
-app = Flask(__name__)  # Initialize the Flask app
 
 # Function to handle user logout
 def handle_logout():
@@ -273,7 +271,6 @@ def handle_stats_request(client_socket):
     logger.log_info("Sent monitoring stats")
 
 
-@app.route('/user-info', methods=['GET'])
 def user_info():
     """Endpoint to fetch the current username."""
     logger.log_info(f"User info request with session_id: {session_id}")  # Log session ID for debugging
