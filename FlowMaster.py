@@ -37,7 +37,7 @@ FILE_PATHS = {
     "index3": "html/index3.html",  # Server on port 8002
     "tracker": "html/tracker.html",  # Monitoring dashboard
     "login": "html/login.html",  # Login page
-    "main.js": "js/main.js",
+    "main.js": "js/main.js", # Javascript for tracker
 }
 
 authenticated_sessions = {}  # Dictionary to track authenticated sessions
@@ -489,6 +489,14 @@ def handle_monitor_request(client_socket, file_path, port):
 
         # TO IMPLEMENT NEED FOR USERNAMES.user_library[username][1] == 1
         if "/disconnect" in path:  # Handle client leave requests
+            if not USERNAMES.GetUserPermissions(current_username) == 1:
+                msg = "{'response': 'missing permissions'}"
+                client_socket.sendall(
+                    f"HTTP/1.1 200 OK\r\nContent-Length: {len(msg)}\r\n\r\n{msg}".encode()
+                )
+                logger.log_info("Did not have proper permissions to Disconnect")
+                return True
+            
             if not is_authenticated:
                 send_redirect_to_login(client_socket)
                 return True
