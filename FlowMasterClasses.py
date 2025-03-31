@@ -34,6 +34,12 @@ class Database:
         except Exception as e:
             print(f"Error: {e}")
 
+    def GetUserPermissions(self, username):
+        if username in self.user_library:
+            return self.user_library[username][1]
+        else:
+            return -1
+
 
 # Class 2
 class UserSession:
