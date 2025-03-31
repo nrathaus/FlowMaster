@@ -1,43 +1,28 @@
 # Project Description as of 19/03/2025
 
 ## Overview:
-This is a multithreaded server designed to handle multiple client requests simultaneously. It serves HTML files from different ports and directs clients to the appropriate server based on current load. The system tracks active users, removes inactive ones, and includes a monitoring server to track real-time user activity and server load. It implements a delay mechanism for routing to ensure balanced load distribution and features a secure login system with authentication and session management. The architecture is designed to be scalable, allowing for easy addition of new features and servers as demand increases. 
-
-### Future Implementations:
-- **User Session Timeout Management**: TO IMPLEMENT
-- **Admin Dashboard Features**: TO IMPLEMENT
-
+This is a multithreaded server designed to handle multiple client requests simultaneously. It serves HTML files from different ports and directs clients to the appropriate server based on current load. The system tracks active users, removes inactive ones, and includes a monitoring server to track real-time user activity and server load. It implements a delay mechanism for routing to ensure balanced load distribution and features a secure login system with authentication and session management. The architecture is designed to be scalable, allowing for easy addition of new features and servers as demand increases.
 
 ## Technical Architecture:
 - **Communication Protocol:** Utilizes TCP sockets for reliable client-server communication, ensuring that data packets are delivered in order and without loss.
 - **Concurrency Model:** Implements thread-based concurrency to handle multiple simultaneous connections, allowing the server to efficiently manage numerous clients without blocking.
 - **State Management:** Maintains shared state with thread-safe mechanisms to prevent data races and ensure consistency across threads.
 - **Load Balancing:** Provides load balancing through a routing server architecture, which intelligently directs incoming requests to the least busy server.
-- **User  Activity Tracking:** Implements a heartbeat mechanism for user activity tracking, allowing the server to monitor user engagement and remove inactive sessions.
+- **User Activity Tracking:** Implements a heartbeat mechanism for user activity tracking, allowing the server to monitor user engagement and remove inactive sessions.
 - **Monitoring:** Includes a monitoring server for real-time statistics with authenticated access, enabling administrators to view server performance and user activity.
-- **Routing Delay:** Implements a delay mechanism in the routing server to ensure even distribution of client requests, preventing any single server from becoming overwhelmed.
-- **Security:** Features a secure login system with username/password authentication and session management, ensuring that only authorized users can access sensitive features.
-
-### Future Implementations:
-- **User Session Timeout Management**: TO IMPLEMENT
-- **Admin Dashboard Features**: TO IMPLEMENT
-
+- **Routing Delay:** Implements a delay mechanism in the routing server to ensure even distribution of client requests.
+- **Security:** Features a secure login system with username/password authentication and session management.
 
 ## What it does:
-1. **Port Check:** Ensures all required ports are available before startup, preventing conflicts that could lead to server failures.
-2. **Static Servers:** Serves HTML files from different ports, allowing for the distribution of content across multiple endpoints.
-3. **Routing Server:** A main server (port ROUTING_PORT) that directs clients to the least busy server with a delay mechanism, optimizing resource utilization.
-4. **Monitoring Server:** Provides real-time data about server load and active users behind authentication, allowing for effective management of server resources.
-5. **User  Tracking:** Regularly updates the list of active users and removes inactive ones, maintaining an accurate representation of current user engagement.
-6. **Authentication:** Implements secure login with username/password verification, ensuring that only authorized users can access the system.
-7. **Session Management:** Tracks authenticated sessions using session IDs and cookies, providing a seamless user experience while maintaining security.
-8. **User  Management:** Allows administrators to disconnect users and deny access, providing control over user sessions and permissions.
-9. **Graceful Shutdown:** Logs active users before exiting when stopped, ensuring that user data is preserved and that the server can restart cleanly.
-
-### Future Implementations:
-- **User Session Timeout Management**: TO IMPLEMENT
-- **Admin Dashboard Features**: TO IMPLEMENT
-
+1. **Port Check:** Ensures all required ports are available before startup.
+2. **Static Servers:** Serves HTML files from different ports.
+3. **Routing Server:** A main server (port ROUTING_PORT) that directs clients to the least busy server with a delay mechanism.
+4. **Monitoring Server:** Provides real-time data about server load and active users behind authentication.
+5. **User Tracking:** Regularly updates the list of active users and removes inactive ones.
+6. **Authentication:** Implements secure login with username/password verification.
+7. **Session Management:** Tracks authenticated sessions using session IDs and cookies.
+8. **User Management:** Allows administrators to disconnect users and deny access.
+9. **Graceful Shutdown:** Logs active users before exiting when stopped.
 
 ## Main Components:
 
@@ -45,189 +30,61 @@ This is a multithreaded server designed to handle multiple client requests simul
 
 1. **socket_module.py:**
    - **Purpose:** Handles network communication.
-   - **Functionality:** Implements TCP protocol for reliable data transfer and manages client connections and data transmission. This module is responsible for establishing connections, sending and receiving data, and handling disconnections.
+   - **Functionality:** Implements TCP protocol for reliable data transfer.
 
 2. **threading_module.py:**
    - **Purpose:** Enables concurrent handling of multiple clients.
-   - **Functionality:** Provides thread-safe mechanisms (Lock) for shared resource access and runs background tasks for user tracking. This module allows the server to spawn new threads for each client connection, ensuring that the server remains responsive.
+   - **Functionality:** Provides thread-safe mechanisms for shared resource access.
 
 3. **signal_module.py:**
    - **Purpose:** Manages system signals for graceful shutdown.
-   - **Functionality:** Ensures proper cleanup on program termination by handling signals like SIGINT (Ctrl+C) and performing necessary shutdown procedures, such as closing open connections and saving state.
 
 4. **time_module.py:**
    - **Purpose:** Manages user session timeouts and activity tracking.
-   - **Functionality:** Handles periodic maintenance tasks and introduces delays in routing to optimize load distribution. This module is crucial for implementing the heartbeat mechanism that checks user activity.
 
 5. **logging_module.py:**
    - **Purpose:** Records server activities and errors.
-   - **Functionality:** Provides debugging information and tracks user connections and server state. This module is essential for monitoring server performance and diagnosing issues.
 
 6. **authentication_module.py:**
    - **Purpose:** Validates user credentials.
-   - **Functionality:** Manages session tokens and provides access control to the monitoring dashboard. This module ensures that only authenticated users can access sensitive areas of the application.
 
 7. **session_management_module.py:**
    - **Purpose:** Tracks authenticated sessions.
-   - **Functionality:** Uses cookies for session persistence and implements timeouts for security. This module is responsible for maintaining user sessions and ensuring that they expire after a period of inactivity.
 
 8. **database_integration_module.py:**
    - **Purpose:** Integrates with SQLite for user credential storage.
-   - **Functionality:** Retrieves username, password, and permission data to support the authentication system. This module is critical for managing user data and ensuring secure access.
 
 ### HTML Files:
 
-1. **index.html:**
-   - **Purpose:** Main landing page served to users.
-   - **Functionality:** Provides links to other resources and information about the server, serving as the entry point for users.
+1. **index1.html**: Displays server statistics for Port 8000, including active user counts and client ID.
+2. **index2.html**: Similar to `index1.html`, but for Port 8001.
+3. **index3.html**: Similar to `index1.html`, but for Port 8002.
+4. **login.html**: Provides a login form for users to enter their credentials and access the server stats monitor.
+5. **tracker.html**: The main monitoring dashboard that displays real-time statistics, including total active users and individual server connections.
 
-2. **dashboard.html:**
-   - **Purpose:** Monitoring dashboard for administrators.
-   - **Functionality:** Displays real-time statistics about server load and active users, requiring authentication to access sensitive information.
-
-3. **login.html:**
-   - **Purpose:** User login page.
-   - **Functionality:** Collects username and password for authentication, providing a secure entry point for users.
-
-4. **error.html:**
-   - **Purpose:** Error page for handling issues.
-   - **Functionality:** Displays error messages for file not found or server errors, improving user experience by providing clear feedback.
+The files `dashboard.html` and `error.html` do not exist in the current working directory.
 
 ## PUP.db Overview:
-PUP.db [Project Usernames Passwords] is a database file used for storing user credentials and permissions. It typically contains tables for usernames, passwords, and user roles, ensuring secure access control within the application. The database is accessed by the server to validate user logins and manage session data, playing a crucial role in maintaining security and user management.
+PUP.db [Project Usernames Passwords] is a database file used for storing user credentials and permissions. It contains the following table:
 
-### PUP.db Structure and Functionality:
-
-- **Database Type:**
-  - PUP.db is commonly an SQLite database, which is lightweight and serverless, making it ideal for applications that require a simple yet effective way to manage user data.
-
-- **Tables:**
-  - **Users Table:**
-    - **Columns:** Typically includes fields such as `username`, `password_hash`, `role`, and `last_login`.
-    - **Purpose:** Stores user credentials and roles, allowing the application to authenticate users and determine their access levels.
-
-  - **Permissions Table:**
-    - **Columns:** May include `role`, `permission_type`, and `resource`.
-    - **Purpose:** Defines what actions each user role can perform within the application, ensuring that users have appropriate access to resources.
-
-- **Data Security:**
-  - **Password Storage:**
-    - Passwords are usually stored as hashes (e.g., using bcrypt or SHA-256) rather than plain text to enhance security.
-
-  - **Access Control:**
-    - The application checks user credentials against the data in PUP.db during the login process, ensuring that only authorized users can access certain features.
-
-### Interaction with the Application:
-
-- **User  Authentication:**
-  - When a user attempts to log in, the application queries PUP.db to retrieve the hashed password associated with the provided username. It then compares the hash of the entered password with the stored hash to verify the user's identity.
-
-- **Session Management:**
-  - Upon successful login, the application may create a session entry that includes the user's ID, role, and session expiration time. This information can be stored in memory or a separate session management table in PUP.db.
-
-- **Role-Based Access Control (RBAC):**
-  - The application uses the roles defined in PUP.db to enforce access control. For example, an admin role may have permissions to manage users, while a regular user role may only have access to view content.
-
-### Maintenance and Updates:
-
-- **Database Maintenance:**
-  - Regular backups of PUP.db are essential to prevent data loss. This can be automated through scheduled tasks.
-
-- **Schema Updates:**
-  - As the application evolves, the database schema may need to be updated to accommodate new features or changes in user management. This requires careful planning to ensure data integrity.
-
-## Why TCP instead of UDP?
-- **TCP Benefits:**
-  * Guaranteed delivery of data.
-  * Automatic packet ordering.
-  * Flow control and congestion control.
-  * Connection-oriented communication.
-  * Error checking and recovery.
-- **UDP would be unsuitable because:**
-  * No guarantee of packet delivery.
-  * No packet ordering.
-  * No connection state tracking.
-  * No flow control.
+### Permissions Table:
+- **PermissionNum**: INTEGER PRIMARY KEY, UNIQUE, NOT NULL
+- **CanView**: TEXT, NOT NULL
+- **CanDisconnect**: TEXT, NOT NULL
 
 ## Key Functions Explained:
-- **test_ports():**
-  - **Purpose:** Validates port availability before server startup.
-  - **Process:** Attempts to bind to each required port.
-  - **Error Handling:** Logs and returns False if any port is unavailable.
-  - **Importance:** Prevents startup failures due to port conflicts.
-- **parse_user_db():**
-  - **Purpose:** Loads user credentials from SQLite database.
-  - **Process:** Connects to the database and queries the UserPassPerm table.
-  - **Output:** Returns a dictionary with username as key and [password, permission] as value.
-  - **Error Handling:** Handles SQLite errors and returns an empty dictionary on failure.
-- **signal_handler():**
-  - **Purpose:** Handles system interrupts (Ctrl+C).
-  - **Process:** Initiates graceful shutdown sequence.
-  - **Importance:** Ensures proper cleanup and resource release.
-- **update_active_users():**
-  - **Purpose:** Maintains accurate user activity tracking.
-  - **Process:** Runs periodically (HEARTBEAT_INTERVAL), checks last activity timestamp for each user, and removes users inactive beyond TIMEOUT_THRESHOLD.
-  - **Thread Safety:** Uses users_lock for safe state updates.
-- **get_server_loads():**
-  - **Purpose:** Tracks current load on each server.
-  - **Process:** Counts active users per port.
-  - **Thread Safety:** Uses users_lock for consistent readings.
-- **get_monitoring_data():**
-  - **Purpose:** Provides real-time statistics of server load.
-  - **Process:** Compiles data from active_users dictionary.
-  - **Output:** JSON response containing load statistics.
-  - **Thread Safety:** Uses users_lock for accurate readings.
-- **select_target_port():**
-  - **Purpose:** Implements load balancing logic with delay mechanism.
-  - **Process:** Gets current server loads, identifies servers with minimum load, selects the lowest port number among the least loaded servers, and ensures delay mechanism is respected for fairness.
-  - **Optimization:** Favors lower port numbers for consistent distribution.
-- **send_redirect():**
-  - **Purpose:** Implements HTTP redirection.
-  - **Process:** Sends 302 Found response with new location.
-  - **Format:** Follows HTTP/1.1 specification for redirects.
-- **send_file():**
-  - **Purpose:** Serves static HTML content.
-  - **Process:** Reads file content, generates HTTP response headers, and sends complete response to client.
-  - **Error Handling:** Handles file not found and server errors.
-- **handle_user_request():**
-  - **Purpose:** Processes regular user requests.
-  - **Process:** Parses incoming HTTP requests, identifies clients using ID or IP, handles specialized requests (heartbeat, leave), and routes or serves content based on port.
-  - **Thread Safety:** Uses multiple locks for shared state access.
-  - **Security:** Identifies and blocks denied users.
-- **handle_monitor_request():**
-  - **Purpose:** Processes monitoring dashboard requests.
-  - **Process:** Verifies authentication, serves monitoring interface, manages user sessions, and provides stats and admin functions.
-  - **Security:** Redirects unauthenticated users to login.
-  - **Admin Features:** Supports disconnecting users and adding them to denied_users.
-- **handle_login_request():**
-  - **Purpose:** Manages user authentication.
-  - **Process:** Validates credentials against USERNAMES dictionary from the database, creates session token on successful login, sets session cookie, and redirects to monitoring dashboard.
-  - **Security:** Returns 401 on failed authentication.
-- **send_redirect_to_login():**
-  - **Purpose:** Redirects unauthenticated users.
-  - **Process:** Sends 302 Found response to login page.
-  - **Security:** Ensures secured access to monitoring features.
-- **start_routing_server():**
-  - **Purpose:** Implements main load balancer with delay mechanism.
-  - **Process:** Accepts incoming connections, creates new thread for each client, delegates to handle_request(), and implements routing delay for load balancing.
-  - **Configuration:** Uses ROUTING_PORT.
-- **monitoring_server():**
-  - **Purpose:** Runs the monitoring dashboard.
-  - **Process:** Accepts connections, manages authentication, and provides monitoring interface and stats.
-  - **Security:** Requires login for access.
-- **static_server():**
-  - **Purpose:** Serves static content.
-  - **Process:** Binds to specified port, accepts connections, and serves associated HTML file.
-  - **Thread Safety:** Creates new thread per client.
-- **main():**
-  - **Purpose:** Application entry point.
-  - **Process:** Validates ports, sets up signal handling, starts user tracking, and initializes all servers.
-  - **Error Handling:** Exits on port test failure.
-
-### Future Implementations:
-- **User Session Timeout Management**: TO IMPLEMENT
-- **Admin Dashboard Features**: TO IMPLEMENT
-
+### JavaScript Functions in `main.js`:
+- **createServerCard(port)**: Creates a card element for displaying statistics for a specific server port.
+- **createUserListItem(userId, port)**: Generates a list item for a user with a disconnect button.
+- **fetchCurrentUser()**: Fetches and displays the current user's information.
+- **disconnectUser(userId, port)**: Handles the disconnection of a user from the server.
+- **fetchStats()**: Fetches and updates server statistics, including active user counts.
+- **filterHostIp(data)**: Filters out the host IP from the statistics data.
+- **drawLineGraph(svgId, data, options)**: Draws a line graph for visualizing data.
+- **drawStackedAreaGraph(svgId, data)**: Draws a stacked area graph for visualizing data.
+- **updateGraphs()**: Updates the graphs with the latest data.
+- **logout()**: Handles user logout functionality.
+- **onPageLoad()**: Initializes the page and fetches initial data.
 
 ## Configuration Constants Explained:
 - **IP:** Server's IP address (automatically detected).
@@ -239,7 +96,7 @@ PUP.db [Project Usernames Passwords] is a database file used for storing user cr
 - **USERNAMES:** Dictionary of allowed username/password pairs loaded from the database.
 - **HEARTBEAT_INTERVAL:** User activity check frequency (2.5 seconds).
 - **TIMEOUT_THRESHOLD:** User inactivity limit (1800 seconds).
-- **DELAY_BETWEEN_ROUTING:** Delay applied before redirecting clients to ensure balanced distribution (0.35 seconds).
+- **DELAY_BETWEEN_ROUTING:** Delay applied before redirecting clients.
 
 ## Shared State Management:
 - **active_users:** Dictionary tracking user activity per port.
