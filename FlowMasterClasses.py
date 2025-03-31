@@ -6,25 +6,46 @@ from datetime import datetime
 
 # Class 1
 class Database:
-    def __init__(self, db_file_path):
+    def __init__(self, db_file_path, rows_array, table_name):
         self.user_library = {}
         try:
             # Connect to the SQLite database
             conn = sqlite3.connect(db_file_path)
             cursor = conn.cursor()
 
-            # Query all user records from the UserPassPerm table
-            cursor.execute("SELECT Username, Password, Perm FROM UserPassPerm")
+            # Create a proper comma-separated list of columns
+            columns = ", ".join(rows_array)
+
+            # Use parameterized query to avoid SQL injection
+            # Use proper string formatting for table name (can't use parameters for table names)
+            query = f"SELECT {columns} FROM {table_name}"
+
+            # Execute the query
+            cursor.execute(query)
             rows = cursor.fetchall()
 
             # Process each row and add to the dictionary
             for row in rows:
-                username = row[0]
-                password = row[1]
-                permission = row[2]
+                # Convert row values based on content
+                converted_values = []
+                for value in row[1:]:
+                    # Handle string type conversions
+                    if isinstance(value, str):
+                        # Convert 'TRUE'/'FALSE' to boolean
+                        if value.upper() == "TRUE":
+                            converted_values.append(True)
+                        elif value.upper() == "FALSE":
+                            converted_values.append(False)
+                        else:
+                            converted_values.append(value)
+                    else:
+                        converted_values.append(value)
 
-                # Add to the dictionary with the required format
-                self.user_library[username] = [password, permission]
+                # Add to the dictionary with converted values
+                if len(converted_values) == 1:
+                    self.user_library[row[0]] = converted_values[0]
+                else:
+                    self.user_library[row[0]] = tuple(converted_values)
 
             # Close the connection
             conn.close()
@@ -34,7 +55,7 @@ class Database:
         except Exception as e:
             print(f"Error: {e}")
 
-    def GetUserPermissions(self, username):
+    def GetSecondOfArray(self, username):
         if username in self.user_library:
             return self.user_library[username][1]
         else:

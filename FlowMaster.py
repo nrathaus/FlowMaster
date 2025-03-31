@@ -70,7 +70,16 @@ clients_lock = (
 )  # Lock to protect the connected_clients set during concurrent access
 
 # Initialize the database and user session manager
-USERNAMES = FlowMasterClasses.Database("PUP.db")  # Allowed usernames for logins
+USERNAMES = FlowMasterClasses.Database(
+    "PUP.db",
+    ["Username", "Password", "Perm"],
+    "UserPassPerm",
+)  # Allowed usernames for logins
+PERMISSIONS = FlowMasterClasses.Database(
+    "PUP.db",
+    ["PermissionNum", "CanView", "CanDisconnect"],
+    "Permissions",
+) # Allowed permissions
 user_session_manager = FlowMasterClasses.UserSession()  # Manage user sessions
 logger = FlowMasterClasses.Logger("../server.log")  # Set up logging
 
@@ -404,6 +413,34 @@ def handle_user_request(client_socket, file_path, port):
     return False
 
 
+def can_disconnect(username, USERNAMES, PERMISSIONS):
+    """
+    Determines if a user has permission to disconnect based on their admin status.
+    Args:
+        username (str): The username to check permissions for
+        USERNAMES (dict): Dictionary containing user information with structure {username: (password, is_admin)}
+        PERMISSIONS (dict): Dictionary containing permission information
+    Returns:
+        bool: True if the user has permission to disconnect, False otherwise
+    """
+    # Check if the username exists in the database
+    if username not in USERNAMES:
+        return False
+
+    # Get user information
+    user_info = USERNAMES.get(username)
+
+    # Check if user is an admin (admin flag is at index 1)
+    if isinstance(user_info, tuple) and len(user_info) > 1:
+        is_admin = user_info[1]
+        # Convert to bool if it's not already
+        if isinstance(is_admin, int):
+            is_admin = bool(is_admin)
+        return is_admin
+
+    return False
+
+
 def handle_monitor_request(client_socket, file_path, port):
     """
     Handle incoming monitor HTTP requests based on the server type and request path.
@@ -491,7 +528,7 @@ def handle_monitor_request(client_socket, file_path, port):
             return True
 
         if "/disconnect" in path:  # Handle client leave requests
-            if not USERNAMES.GetUserPermissions(current_username) == 1:
+            if not USERNAMES.GetSecondOfArray(current_username) == 1:
                 msg = "{'response': 'missing permissions'}"
                 client_socket.sendall(
                     f"HTTP/1.1 200 OK\r\nContent-Length: {len(msg)}\r\n\r\n{msg}".encode()
