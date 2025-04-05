@@ -72,7 +72,7 @@ PERMISSIONS = FlowMasterClasses.Database(
     "Permissions",
 )  # Allowed permissions
 USER_SESSION_MANAGER = FlowMasterClasses.UserSession()  # Manage user sessions
-LOGGER = FlowMasterClasses.logger("../server.log")  # Set up logging
+LOGGER = FlowMasterClasses.Logger("../server.log")  # Set up logging
 
 
 # Function to handle user logout
