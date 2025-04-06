@@ -331,7 +331,6 @@ def handle_user_request(client_socket, file_path, port):
             sys.exit()
 
         data = client_socket.recv(9999).decode()  # Read data from client (HTTP request)
-        logger.log_info(f"Received data on port {port}\n{str(data)}")
 
         if client_socket.fileno() == -1:  # Check if socket is still valid
             logger.log_error(f"Socket already closed on port {port}")
