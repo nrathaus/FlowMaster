@@ -29,6 +29,7 @@ ip = socket.gethostbyname(
 
 # Ports for content servers and routing
 ports = [8000, 8001, 8002]
+server_caps = [50, 100, 80]
 routing_port = 8080  # Port for the load balancer
 monitoring_port = 8081  # Port for the monitoring dashboard
 socket_timeout = 5  # Socket timeout in seconds
@@ -459,7 +460,6 @@ def handle_monitor_request(client_socket, file_path, port):
             sys.exit()
 
         data = client_socket.recv(9999).decode()  # Read data from client (HTTP request)
-        logger.log_info(f"Received data on port {port}\n{str(data)}")
 
         if client_socket.fileno() == -1:  # Check if socket is still valid
             logger.log_error(f"Socket already closed on port {port}")
