@@ -40,6 +40,8 @@ file_paths = {
     "index3": "html/index3.html",  # Server on port 8002
     "tracker": "html/tracker.html",  # Monitoring dashboard
     "login": "html/login.html",  # Login page
+    "disconnect": "html/disconnect.html",  # Disconnect page
+    "loading": "html/loading.html",  # Loading page
     "main.js": "js/main.js",  # Javascript for tracker
 }
 
