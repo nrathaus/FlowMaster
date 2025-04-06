@@ -21,20 +21,20 @@ def handle_logout():
     # TO IMPLEMENT LOGIC TO DELETE SESSION COOKIE
 
 
-MONITOR_SERVER = True  # Flag to control monitoring server status
-SERVICE_USERS = True  # Flag to control user service status
-IP = socket.gethostbyname(
+monitor_server = True  # Flag to control monitoring server status
+service_users = True  # Flag to control user service status
+ip = socket.gethostbyname(
     socket.gethostname()
 )  # Get the local machine's IP address automatically
 
 # Ports for content servers and routing
-PORTS = [8000, 8001, 8002]
-ROUTING_PORT = 8080  # Port for the load balancer
-MONITORING_PORT = 8081  # Port for the monitoring dashboard
-SOCKET_TIMEOUT = 5  # Socket timeout in seconds
+ports = [8000, 8001, 8002]
+routing_port = 8080  # Port for the load balancer
+monitoring_port = 8081  # Port for the monitoring dashboard
+socket_timeout = 5  # Socket timeout in seconds
 
 # Paths to HTML files served by different servers
-FILE_PATHS = {
+file_paths = {
     "index1": "html/index1.html",  # Server on port 8000
     "index2": "html/index2.html",  # Server on port 8001
     "index3": "html/index3.html",  # Server on port 8002
@@ -44,15 +44,15 @@ FILE_PATHS = {
 }
 
 authenticated_sessions = {}  # Dictionary to track authenticated sessions
-HEARTBEAT_INTERVAL = 2.5  # Time between heartbeat checks (in seconds)
-TIMEOUT_THRESHOLD = (
+heartbeat_interval = 2.5  # Time between heartbeat checks (in seconds)
+timeout_threshold = (
     1800  # Time after which a client is considered inactive (in seconds)
 )
-DELAY_BETWEEN_ROUTING = 0.35  # Delay between routing requests
+delay_between_routing = 0.35  # Delay between routing requests
 
 # SHARED STATE AND SYNCHRONIZATION
 active_users = {
-    port: {} for port in PORTS + [MONITORING_PORT]
+    port: {} for port in ports + [monitoring_port]
 }  # Track active users per port
 denied_users = {}  # Track users we want to deny access
 
@@ -70,12 +70,12 @@ clients_lock = (
 )  # Lock to protect the connected_clients set during concurrent access
 
 # Initialize the database and user session manager
-USERNAMES = FlowMasterClasses.Database(
+usernames = FlowMasterClasses.Database(
     "PUP.db",
     ["Username", "Password", "Perm"],
     "UserPassPerm",
 )  # Allowed usernames for logins
-PERMISSIONS = FlowMasterClasses.Database(
+permissions = FlowMasterClasses.Database(
     "PUP.db",
     ["PermissionNum", "CanView", "CanDisconnect"],
     "Permissions",
@@ -90,10 +90,10 @@ def test_ports():
     Returns:
         bool: True if all ports are available, False otherwise.
     """
-    for port in PORTS + [ROUTING_PORT, MONITORING_PORT]:
+    for port in ports + [routing_port, monitoring_port]:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as test_socket:
             try:
-                test_socket.bind((IP, port))  # Try to bind to the port
+                test_socket.bind((ip, port))  # Try to bind to the port
             except socket.error:
                 logger.log_error(f"Port {port} is not available!")
                 return False
@@ -107,10 +107,10 @@ def signal_handler(*_):
     Args:
         *_: Ignored signal parameters.
     """
-    global MONITOR_SERVER, SERVICE_USERS, client_sockets
+    global monitor_server, service_users, client_sockets
     logger.log_info("Shutting down server - waiting for 1 second")
-    MONITOR_SERVER = False
-    SERVICE_USERS = False
+    monitor_server = False
+    service_users = False
 
     for _, PeerName in client_sockets.items():
         try:
@@ -128,18 +128,18 @@ def update_active_users():
     Periodically checks for and removes inactive users based on
     their last activity timestamp. Runs continuously in a separate thread.
     """
-    while SERVICE_USERS:
-        time.sleep(HEARTBEAT_INTERVAL)  # Wait between checks
+    while service_users:
+        time.sleep(heartbeat_interval)  # Wait between checks
         current_time = datetime.now()
 
         with users_lock:  # Ensure thread-safe access to shared data
-            for port in PORTS + [MONITORING_PORT]:
+            for port in ports + [monitoring_port]:
                 # Find users who haven't sent a heartbeat within the threshold
                 inactive_users = [
                     client_id
                     for client_id, last_active in active_users[port].items()
                     if (current_time - last_active)
-                    > timedelta(seconds=TIMEOUT_THRESHOLD)
+                    > timedelta(seconds=timeout_threshold)
                 ]
 
                 # Remove inactive users
@@ -148,7 +148,7 @@ def update_active_users():
 
             # Log current active user counts for monitoring
             logger.log_info("--- Current Active Users ---")
-            for port in PORTS:
+            for port in ports:
                 logger.log_info(f"Port {port}: {len(active_users[port])} active users")
 
 
@@ -159,7 +159,7 @@ def get_server_loads():
         dict: Dictionary mapping port numbers to user counts.
     """
     with users_lock:  # Protect shared data during read
-        return {port: len(active_users[port]) for port in PORTS}
+        return {port: len(active_users[port]) for port in ports}
 
 
 def get_monitoring_data():
@@ -178,9 +178,9 @@ def get_monitoring_data():
                     "active_users": len(active_users[port]),
                     "users": list(active_users[port].keys()),
                 }
-                for port in PORTS
+                for port in ports
             },
-            "total_users": sum(len(active_users[port]) for port in PORTS),
+            "total_users": sum(len(active_users[port]) for port in ports),
         }
 
 
@@ -216,7 +216,7 @@ def send_redirect(client_socket, port):
         port (int): The port to redirect the client to.
     """
     redirect_response = (
-        f"HTTP/1.1 302 Found\r\n" f"Location: http://{IP}:{port}/\r\n" "\r\n"
+        f"HTTP/1.1 302 Found\r\n" f"Location: http://{ip}:{port}/\r\n" "\r\n"
     ).encode()
 
     client_socket.sendall(redirect_response)
@@ -325,7 +325,7 @@ def handle_user_request(client_socket, file_path, port):
         bool: True if request was handled successfully, False otherwise.
     """
     try:
-        if not SERVICE_USERS or not MONITOR_SERVER:
+        if not service_users or not monitor_server:
             sys.exit()
 
         data = client_socket.recv(9999).decode()  # Read data from client (HTTP request)
@@ -387,7 +387,7 @@ def handle_user_request(client_socket, file_path, port):
             )
             return True
 
-        if port == ROUTING_PORT:  # Handle routing server (load balancer) requests
+        if port == routing_port:  # Handle routing server (load balancer) requests
             selected_port = select_target_port()
             send_redirect(client_socket, selected_port)
             return True
@@ -454,7 +454,7 @@ def handle_monitor_request(client_socket, file_path, port):
         bool: True if request was handled successfully, False otherwise.
     """
     try:
-        if not SERVICE_USERS or not MONITOR_SERVER:
+        if not service_users or not monitor_server:
             sys.exit()
 
         data = client_socket.recv(9999).decode()  # Read data from client (HTTP request)
@@ -498,17 +498,17 @@ def handle_monitor_request(client_socket, file_path, port):
         if path == "/" or path == "":
             if is_authenticated:
                 # Get the tracker.html file content
-                send_file(FILE_PATHS["tracker"], client_socket)
+                send_file(file_paths["tracker"], client_socket)
                 logger.log_info(f"Sent tracker.html with username: {current_username}")
             else:
-                send_file(FILE_PATHS["login"], client_socket)  # Serve login.html
+                send_file(file_paths["login"], client_socket)  # Serve login.html
             return True
 
         # Explicitly handle tracker.html request
         if path == "/tracker.html":
             if is_authenticated:
                 # Get the tracker.html file content
-                send_file(FILE_PATHS["tracker"], client_socket)  # Fallback
+                send_file(file_paths["tracker"], client_socket)  # Fallback
                 logger.log_info(f"Sent tracker.html with username: {current_username}")
             else:
                 send_redirect_to_login(client_socket)  # Redirect to log in
@@ -516,7 +516,7 @@ def handle_monitor_request(client_socket, file_path, port):
 
         # Explicitly handle login.html request
         if path == "/login.html":
-            send_file(FILE_PATHS["login"], client_socket)  # Always serve login page
+            send_file(file_paths["login"], client_socket)  # Always serve login page
             return True
 
         # Handle stats request (for authenticated users only)
@@ -528,7 +528,7 @@ def handle_monitor_request(client_socket, file_path, port):
             return True
 
         if "/disconnect" in path:  # Handle client leave requests
-            if not USERNAMES.GetSecondOfArray(current_username) == 1:
+            if not usernames.GetSecondOfArray(current_username) == 1:
                 msg = "{'response': 'missing permissions'}"
                 client_socket.sendall(
                     f"HTTP/1.1 200 OK\r\nContent-Length: {len(msg)}\r\n\r\n{msg}".encode()
@@ -560,7 +560,7 @@ def handle_monitor_request(client_socket, file_path, port):
                 return True
 
             with users_lock:
-                for check_port in PORTS + [MONITORING_PORT]:
+                for check_port in ports + [monitoring_port]:
                     if user_id in active_users[check_port]:
                         del active_users[check_port][user_id]
 
@@ -594,7 +594,7 @@ def handle_monitor_request(client_socket, file_path, port):
 
         # Default: serve the requested file
         no_leading_slash_path = path.removeprefix("/")
-        for _, item in FILE_PATHS.items():
+        for _, item in file_paths.items():
             if item == no_leading_slash_path:
                 send_file(no_leading_slash_path, client_socket)
                 return True
@@ -622,7 +622,7 @@ def send_redirect_to_login(client_socket):
     """
     redirect_response = (
         f"HTTP/1.1 302 Found\r\n"
-        f"Location: http://{IP}:{MONITORING_PORT}/login.html\r\n"
+        f"Location: http://{ip}:{monitoring_port}/login.html\r\n"
         f"\r\n"
     ).encode()
 
@@ -650,8 +650,8 @@ def handle_login_request(client_socket, data):
 
         # Check credentials against USERNAMES dictionary
         if (
-            username in USERNAMES.user_library
-            and USERNAMES.user_library[username][0] == password
+            username in usernames.user_library
+            and usernames.user_library[username][0] == password
         ):
             # Update current_username when login is successful
             current_username = username
@@ -661,7 +661,7 @@ def handle_login_request(client_socket, data):
             response = {
                 "success": True,
                 "message": "Login successful",
-                "redirect": f"http://{IP}:{MONITORING_PORT}/tracker.html",
+                "redirect": f"http://{ip}:{monitoring_port}/tracker.html",
             }
             response_json = json.dumps(response)
 
@@ -710,21 +710,21 @@ def monitoring_server():
     This server runs on its own thread and handles requests for monitoring data.
     """
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
-        server_socket.bind((IP, MONITORING_PORT))
+        server_socket.bind((ip, monitoring_port))
         server_socket.listen()
-        logger.log_info(f"Monitoring server listening on: {IP}:{MONITORING_PORT}")
+        logger.log_info(f"Monitoring server listening on: {ip}:{monitoring_port}")
 
-        while MONITOR_SERVER:
+        while monitor_server:
             client_socket, _ = server_socket.accept()  # Accept incoming connections
-            client_socket.settimeout(SOCKET_TIMEOUT)
+            client_socket.settimeout(socket_timeout)
             Client_PeerName = f"{client_socket.getpeername()}"
             client_sockets[Client_PeerName] = client_socket
 
             threading.Thread(  # Handle each request in a separate thread
                 target=lambda: handle_monitor_request(
                     client_socket,
-                    FILE_PATHS["login"],
-                    MONITORING_PORT,  # Default to login page
+                    file_paths["login"],
+                    monitoring_port,  # Default to login page
                 )
             ).start()
 
@@ -736,27 +736,27 @@ def start_routing_server():
     least loaded content server. Runs on the main thread.
     """
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as routing_socket:
-        routing_socket.bind((IP, ROUTING_PORT))
+        routing_socket.bind((ip, routing_port))
         routing_socket.listen()
-        logger.log_info(f"Routing server listening on: {IP}:{ROUTING_PORT}")
+        logger.log_info(f"Routing server listening on: {ip}:{routing_port}")
 
         last_routing_time = time.time()
 
         while True:
             client_socket, _ = routing_socket.accept()  # Accept incoming connections
-            client_socket.settimeout(SOCKET_TIMEOUT)
+            client_socket.settimeout(socket_timeout)
 
             current_time = time.time()  # Implement rate limiting for routing requests
             time_since_last = current_time - last_routing_time
 
             # If too little time has passed since last routing, add a delay
-            if time_since_last < DELAY_BETWEEN_ROUTING:
-                time.sleep(DELAY_BETWEEN_ROUTING - time_since_last)
+            if time_since_last < delay_between_routing:
+                time.sleep(delay_between_routing - time_since_last)
 
             last_routing_time = time.time()  # Update last routing time
 
             threading.Thread(  # Handle each routing request in a separate thread
-                target=lambda: handle_user_request(client_socket, None, ROUTING_PORT)
+                target=lambda: handle_user_request(client_socket, None, routing_port)
             ).start()
 
 
@@ -769,13 +769,13 @@ def static_server(port, file_path):
         file_path (str): Path to the HTML file to serve.
     """
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
-        server_socket.bind((IP, port))
+        server_socket.bind((ip, port))
         server_socket.listen()
-        logger.log_info(f"Static server listening on: {IP}:{port}")
+        logger.log_info(f"Static server listening on: {ip}:{port}")
 
-        while MONITOR_SERVER:
+        while monitor_server:
             client_socket, _ = server_socket.accept()  # Accept incoming connections
-            client_socket.settimeout(SOCKET_TIMEOUT)
+            client_socket.settimeout(socket_timeout)
 
             threading.Thread(  # Handle each request in a separate thread
                 target=lambda: handle_user_request(client_socket, file_path, port)
@@ -787,8 +787,8 @@ def start_static_servers():
     Start all static content servers in separate threads.
     Creates one server for each port/file pair defined in PORTS and FILE_PATHS.
     """
-    files = [FILE_PATHS["index1"], FILE_PATHS["index2"], FILE_PATHS["index3"]]
-    for port, file_path in zip(PORTS, files):  # Exclude monitoring page
+    files = [file_paths["index1"], file_paths["index2"], file_paths["index3"]]
+    for port, file_path in zip(ports, files):  # Exclude monitoring page
         threading.Thread(
             target=lambda p=port, f=file_path: static_server(p, f)
         ).start()  # Create a new thread for each static server
@@ -806,10 +806,10 @@ def main():
         sys.exit()
 
     # Log access information
-    logger.log_info(f"Server accessible at: http://{IP}:{ROUTING_PORT}")
-    logger.log_info(f"Monitoring interface at: http://{IP}:{MONITORING_PORT}")
+    logger.log_info(f"Server accessible at: http://{ip}:{routing_port}")
+    logger.log_info(f"Monitoring interface at: http://{ip}:{monitoring_port}")
     logger.log_info(
-        f"Direct access ports: {', '.join(f'http://{IP}:{port}' for port in PORTS)}"
+        f"Direct access ports: {', '.join(f'http://{ip}:{port}' for port in ports)}"
     )
 
     # Set up signal handler for graceful shutdown
