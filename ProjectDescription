@@ -1,7 +1,17 @@
-# Project Description as of 19/03/2025
+# Project Description as of 07/04/2025
 
 ## Overview:
-This is a multithreaded server designed to handle multiple client requests simultaneously. It serves HTML files from different ports and directs clients to the appropriate server based on current load. The system tracks active users, removes inactive ones, and includes a monitoring server to track real-time user activity and server load. It implements a delay mechanism for routing to ensure balanced load distribution and features a secure login system with authentication and session management. The architecture is designed to be scalable, allowing for easy addition of new features and servers as demand increases.
+FlowMaster is a high-performance, multithreaded server system designed for efficient load balancing and real-time monitoring. The architecture employs multiple content servers (ports 8000-8002) with a central routing server (port 8080) that implements intelligent load distribution algorithms. A dedicated monitoring server (port 8081) provides comprehensive real-time analytics through an authenticated web interface. 
+The system features robust session management with secure login/logout functionality and administrator controls. Advanced capabilities include automatic detection and cleanup of inactive sessions, configurable server capacity limits, and graceful shutdown handling. Built with scalability in mind, the architecture supports horizontal scaling by simply adding more content servers. 
+Performance optimizations include thread-safe state management, efficient socket handling, and minimal overhead routing. The implementation uses Python's threading module for concurrent request processing while maintaining data consistency through proper locking mechanisms. All server activity is logged for debugging and auditing purposes, with configurable log levels and output destinations.
+
+Key benefits include:
+- Intelligent load balancing across multiple servers
+- Real-time monitoring and analytics dashboard
+- Secure authentication and session management
+- Automatic cleanup of inactive sessions
+- Horizontal scalability for growing demand
+- Comprehensive logging and debugging support
 
 ## Technical Architecture:
 - **Communication Protocol:** Utilizes TCP sockets for reliable client-server communication, ensuring that data packets are delivered in order and without loss.
@@ -28,31 +38,23 @@ This is a multithreaded server designed to handle multiple client requests simul
 
 ### Python Files:
 
-1. **socket_module.py:**
-   - **Purpose:** Handles network communication.
-   - **Functionality:** Implements TCP protocol for reliable data transfer.
+1. **FlowMaster.py:**
+   - **Purpose:** Main server implementation handling all core functionality.
+   - **Functionality:** 
+     - Implements TCP protocol for reliable data transfer
+     - Provides thread-safe mechanisms for shared resource access
+     - Manages system signals for graceful shutdown
+     - Tracks user sessions and activity timeouts
+     - Records server activities and errors
+     - Validates user credentials
+     - Implements load balancing and routing
 
-2. **threading_module.py:**
-   - **Purpose:** Enables concurrent handling of multiple clients.
-   - **Functionality:** Provides thread-safe mechanisms for shared resource access.
-
-3. **signal_module.py:**
-   - **Purpose:** Manages system signals for graceful shutdown.
-
-4. **time_module.py:**
-   - **Purpose:** Manages user session timeouts and activity tracking.
-
-5. **logging_module.py:**
-   - **Purpose:** Records server activities and errors.
-
-6. **authentication_module.py:**
-   - **Purpose:** Validates user credentials.
-
-7. **session_management_module.py:**
-   - **Purpose:** Tracks authenticated sessions.
-
-8. **database_integration_module.py:**
-   - **Purpose:** Integrates with SQLite for user credential storage.
+2. **FlowMasterClasses.py:**
+   - **Purpose:** Contains core classes used by the server.
+   - **Functionality:**
+     - Database integration with SQLite
+     - User session management
+     - Logging functionality
 
 ### HTML Files:
 
@@ -61,8 +63,8 @@ This is a multithreaded server designed to handle multiple client requests simul
 3. **index3.html**: Similar to `index1.html`, but for Port 8002.
 4. **login.html**: Provides a login form for users to enter their credentials and access the server stats monitor.
 5. **tracker.html**: The main monitoring dashboard that displays real-time statistics, including total active users and individual server connections.
-
-The files `dashboard.html` and `error.html` do not exist in the current working directory.
+6. **disconnect.html**: Page shown when a user is disconnected by an administrator.
+7. **loading.html**: Page shown when all servers are busy and client must wait.
 
 ## PUP.db Overview:
 PUP.db [Project Usernames Passwords] is a database file used for storing user credentials and permissions. It contains the following table:
@@ -71,8 +73,47 @@ PUP.db [Project Usernames Passwords] is a database file used for storing user cr
 - **PermissionNum**: INTEGER PRIMARY KEY, UNIQUE, NOT NULL
 - **CanView**: TEXT, NOT NULL
 - **CanDisconnect**: TEXT, NOT NULL
+### UserPassPerm Table:
+- **Username**: TEXT PRIMARY KEY, UNIQUE, NOT NULL
+- **Password**: TEXT, NOT NULL
+- **Perm**: INTEGER, NOT NULL (references PermissionNum in Permissions table)
 
-## Key Functions Explained:
+## Key Components Explained:
+
+### Python Imports in `FlowMaster.py`:
+- **json**: Used for parsing and generating JSON data (stats, login requests)
+- **signal**: Handles graceful shutdown via SIGINT (Ctrl+C)
+- **socket**: Core networking for TCP server implementation
+- **sys**: System-specific functions (exit handling)
+- **threading**: Enables concurrent request handling
+- **time**: Timing functions (delays, timeouts)
+- **datetime/timedelta**: Tracks user activity timestamps
+- **FlowMasterClasses**: Custom classes for database, logging and session management
+
+### Python Functions in `FlowMaster.py` (Alphabetical):
+- **can_disconnect(username, USERNAMES, PERMISSIONS)**: Checks if user has disconnect permissions
+- **fetchCurrentUser(session_id)**: Gets username from session ID
+- **get_monitoring_data()**: Collects stats for monitoring dashboard
+- **get_server_loads()**: Returns current user counts per server
+- **handle_login_request(client_socket, data)**: Processes login POST requests
+- **handle_logout()**: Clears current user session
+- **handle_monitor_request(client_socket, file_path, port)**: Handles monitoring server requests
+- **handle_stats_request(client_socket)**: Serves monitoring stats in JSON
+- **handle_user_request(client_socket, file_path, port)**: Handles content server requests
+- **main()**: Entry point that starts all server components
+- **monitoring_server()**: Runs monitoring dashboard server
+- **select_target_port()**: Load balancing algorithm implementation
+- **send_file(file_path, client_socket)**: Serves files with HTTP headers
+- **send_redirect(client_socket, port)**: Sends HTTP redirect response
+- **send_redirect_to_login(client_socket)**: Redirects to login page
+- **signal_handler(*_)**: Graceful shutdown handler
+- **start_routing_server()**: Main load balancer implementation
+- **start_static_servers(max_connections)**: Launches all content servers
+- **static_server(port, file_path, max_connections)**: Runs a content server
+- **test_ports()**: Verifies required ports are available
+- **update_active_users()**: Background task to clean inactive users
+- **user_info()**: Endpoint to fetch current username
+
 ### JavaScript Functions in `main.js`:
 - **createServerCard(port)**: Creates a card element for displaying statistics for a specific server port.
 - **createUserListItem(userId, port)**: Generates a list item for a user with a disconnect button.
@@ -85,6 +126,10 @@ PUP.db [Project Usernames Passwords] is a database file used for storing user cr
 - **updateGraphs()**: Updates the graphs with the latest data.
 - **logout()**: Handles user logout functionality.
 - **onPageLoad()**: Initializes the page and fetches initial data.
+- **handleLoginResponse(response)**: Processes login response and redirects if successful.
+- **setupEventListeners()**: Configures event handlers for UI elements.
+- **updateServerCards(stats)**: Updates server card displays with current statistics.
+- **updateUserList(stats)**: Updates the list of connected users.
 
 ## Configuration Constants Explained:
 - **IP:** Server's IP address (automatically detected).

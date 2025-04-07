@@ -27,11 +27,11 @@ ip = socket.gethostbyname(
     socket.gethostname()
 )  # Get the local machine's IP address automatically
 
-# Ports for content servers and routing
-ports = [8000, 8001, 8002]
-server_caps = [50, 100, 80]
+ports = [8000, 8001, 8002] # Ports for content servers and routing
+server_caps = [60, 150, 90] # Maximal amount of Connections allowed to connect to each port [in order], in this example: [20%, 50%, 30%]
 routing_port = 8080  # Port for the load balancer
 monitoring_port = 8081  # Port for the monitoring dashboard
+loading_port = 7999 # Port used for redirect if all servers are busy
 socket_timeout = 5  # Socket timeout in seconds
 
 # Paths to HTML files served by different servers
@@ -55,7 +55,7 @@ delay_between_routing = 0.35  # Delay between routing requests
 
 # SHARED STATE AND SYNCHRONIZATION
 active_users = {
-    port: {} for port in ports + [monitoring_port]
+    port: {} for port in ports + [loading_port] + [monitoring_port]
 }  # Track active users per port
 denied_users = {}  # Track users we want to deny access
 
@@ -82,7 +82,7 @@ permissions = FlowMasterClasses.Database(
     "PUP.db",
     ["PermissionNum", "CanView", "CanDisconnect"],
     "Permissions",
-) # Allowed permissions
+)  # Allowed permissions
 user_session_manager = FlowMasterClasses.UserSession()  # Manage user sessions
 logger = FlowMasterClasses.Logger("../server.log")  # Set up logging
 
@@ -196,17 +196,27 @@ def select_target_port():
         int: The selected port number for the new connection.
     """
     loads = get_server_loads()
-    logger.log_info(f"Current server loads: {json.dumps(loads)}")
+    # Pair each load with its corresponding server capacity for normalization
+    percentageoccupied = [
+        (load / cap) for load, cap in zip(loads.values(), server_caps)
+    ]
 
-    min_load = min(loads.values())  # Find the minimum load across all servers
-    min_load_ports = [
-        port for port, load in loads.items() if load == min_load
-    ]  # Get all servers that have this minimum load
+    logger.log_info(f"Current server loads: {json.dumps(loads)} - {percentageoccupied}")
 
-    # Use the lowest port number among the minimally loaded servers
-    selected_port = min(min_load_ports)
-    logger.log_info(f"Selected port {selected_port} with load {min_load}")
-    return selected_port
+    min_load = min(percentageoccupied)  # Find the minimum percentage load
+    if min_load < 1:
+        min_load_ports = [
+            port
+            for port, percentage in zip(loads.keys(), percentageoccupied)
+            if percentage == min_load
+        ]  # Get all servers with the minimum percentage load
+
+        # Use the lowest port number among the minimally loaded servers
+        selected_port = min(min_load_ports)
+        logger.log_info(f"Selected port {selected_port} with load {min_load}")
+        return selected_port
+    else:
+        return loading_port
 
 
 def send_redirect(client_socket, port):
@@ -761,38 +771,66 @@ def start_routing_server():
             ).start()
 
 
-def static_server(port, file_path):
+def static_server(port, file_path, max_connections=50):
     """
     Start a static content server on a specific port.
     Each static server serves one HTML file and handles client tracking.
     Args:
         port (int): Port number to listen on.
         file_path (str): Path to the HTML file to serve.
+        max_connections (int): Maximum allowed concurrent connections (default: 50)
     """
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
         server_socket.bind((ip, port))
         server_socket.listen()
-        logger.log_info(f"Static server listening on: {ip}:{port}")
+        logger.log_info(
+            f"Static server listening on: {ip}:{port} (max connections: {max_connections})"
+        )
 
         while monitor_server:
             client_socket, _ = server_socket.accept()  # Accept incoming connections
             client_socket.settimeout(socket_timeout)
+
+            # Check current connection count before processing
+            with users_lock:
+                current_connections = len(active_users[port])
 
             threading.Thread(  # Handle each request in a separate thread
                 target=lambda: handle_user_request(client_socket, file_path, port)
             ).start()
 
 
-def start_static_servers():
+def start_static_servers(max_connections=None):
     """
     Start all static content servers in separate threads.
     Creates one server for each port/file pair defined in PORTS and FILE_PATHS.
+    Args:
+        max_connections (int|list): Maximum connections per server.
+                   If single int, applies to all servers.
+                   If list, specifies per-server limits.
     """
     files = [file_paths["index1"], file_paths["index2"], file_paths["index3"]]
-    for port, file_path in zip(ports, files):  # Exclude monitoring page
+    if isinstance(max_connections, int):
+        max_connections = [max_connections] * len(ports)
+    elif max_connections is None:
+        max_connections = [10] * len(ports)
+
+    for port, file_path, max_conn in zip(ports, files, max_connections):
+        logger.log_info(
+            f"Starting server on port {port} with max connections: {max_conn}"
+        )
         threading.Thread(
-            target=lambda p=port, f=file_path: static_server(p, f)
-        ).start()  # Create a new thread for each static server
+            target=lambda p=port, f=file_path, m=max_conn: static_server(p, f, m)
+        ).start()
+
+    logger.log_info(
+        f"Starting loading server on port {loading_port} with no real max connections"
+    )
+    threading.Thread(
+        target=lambda p=loading_port, f=file_paths["loading"], m=100000: static_server(
+            p, f, m
+        )
+    ).start()
 
 
 def main():
@@ -820,7 +858,7 @@ def main():
     threading.Thread(target=update_active_users, daemon=True).start()
 
     # Start all content servers in separate threads
-    start_static_servers()
+    start_static_servers(server_caps)
 
     # Start monitoring server in a separate thread
     threading.Thread(target=monitoring_server, daemon=True).start()
