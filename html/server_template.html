@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Server Stats - Port {{ 7999 + x }}</title> 
+    <style>
+        .stats {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f0f0f0;
+            border-radius: 5px;
+        }
+
+        .client-id {
+            background-color: #e0e0e0;
+            padding: 8px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="client-id">
+        Client ID: <span id="displayClientId">Loading...</span>
+    </div>
+
+    <h1>Welcome to Tal {{ x }}</h1>
+
+    <div id="serverInfo">
+        <p>Running on IP:
+            <script>document.write(window.location.hostname)</script>
+        </p>
+        <p>Port: {{ 7999 + x }}</p>
+    </div>
+
+    <div class="stats">
+        <p>Active Users: <span id="activeUsers">Loading...</span></p>
+    </div>
+
+    <script>
+        const clientId = Math.random().toString(36).substring(2);
+        const port = {{ 7999 + x }};
+
+        document.getElementById('displayClientId').textContent = clientId;
+
+        async function sendHeartbeat() {
+            try {
+                const response = await fetch(`${window.location.href}heartbeat?client_id=${clientId}`);
+                if (response.ok) {
+                    const redirectUrl = response.headers.get('X-Redirect');
+                    if (redirectUrl) {
+                        window.location.href = redirectUrl;
+                        return;
+                    }
+                    const activeCount = response.headers.get('X-Active-Users');
+                    if (activeCount) {
+                        document.getElementById('activeUsers').textContent = activeCount;
+                    }
+                }
+            } catch (error) {
+                console.error('Heartbeat error:', error);
+            }
+        }
+
+        sendHeartbeat();
+        setInterval(sendHeartbeat, 2500);
+
+        window.addEventListener('beforeunload', () => {
+            navigator.sendBeacon(`${window.location.href}leave?client_id=${clientId}`);
+        });
+    </script>
+</body>
+
+</html>
