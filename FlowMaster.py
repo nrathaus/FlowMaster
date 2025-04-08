@@ -1,6 +1,3 @@
-# TO IMPLEMENT SERVERS WITH DIFFERENT SIZES
-
-
 import json
 import signal
 import socket
@@ -8,7 +5,6 @@ import sys
 import threading
 import time
 from datetime import datetime, timedelta
-from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 import FlowMasterClasses
 
 # CONFIGURATION CONSTANTS
@@ -28,11 +24,15 @@ ip = socket.gethostbyname(
     socket.gethostname()
 )  # Get the local machine's IP address automatically
 
-ports = [8000, 8001, 8002] # Ports for content servers and routing
-server_caps = [60, 150, 90] # Maximal amount of Connections allowed to connect to each port [in order], in this example: [20%, 50%, 30%]
+ports = [8000, 8001, 8002]  # Ports for content servers and routing
+server_caps = [
+    60,
+    150,
+    90,
+]  # Maximal amount of Connections allowed to connect to each port [in order], in this example: [20%, 50%, 30%]
 routing_port = 8080  # Port for the load balancer
 monitoring_port = 8081  # Port for the monitoring dashboard
-loading_port = 7999 # Port used for redirect if all servers are busy
+loading_port = 7999  # Port used for redirect if all servers are busy
 socket_timeout = 5  # Socket timeout in seconds
 
 # Paths to HTML files served by different servers
