@@ -379,10 +379,24 @@ function updateGraphs() {
     drawStackedAreaGraph("percentageGraph", trafficHistory);
 }
 
-// Make all servers full
+let serverFullState = false; // false means default caps, true means pretend caps (full)
+
 function make_server_full() {
     fetch("/make_server_full", {
         method: "POST",
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.state === "full") {
+            serverFullState = true;
+            document.getElementById("toggleFullBtn").textContent = "Return to default caps";
+        } else {
+            serverFullState = false;
+            document.getElementById("toggleFullBtn").textContent = "Make All Servers Appear Full";
+        }
+    })
+    .catch(error => {
+        console.error("Error toggling server caps:", error);
     });
 }
 

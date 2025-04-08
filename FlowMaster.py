@@ -1,9 +1,6 @@
 # *TO DO LIST:*
 # 1. Use Unimplemented Files:
-#   1.1. Use Loading for when server = full
-#       1.1.1. Add Check if servers no longer full it redirect
-#       1.1.2. Make sure it doesn't break everything
-#   1.2. Use Disconnect for when you've been disconnected
+#   1.1. Use Disconnect for when you've been disconnected
 
 # 2. Use Your JinjaTest Code
 #   2.1. Replace index1-3
@@ -42,11 +39,18 @@ IP = socket.gethostbyname(
     socket.gethostname()
 )  # Get the local machine's IP address automatically
 PORTS = [8000, 8001, 8002]  # Ports for content servers
-SERVER_CAPS = {
+ACTUAL_CAPS = {
     8000: 60,
     8001: 150,
     8002: 90,
 }  # Maximal amount of Connections allowed to connect to each port
+PRETEND_CAPS = {
+    8000: 1,
+    8001: 1,
+    8002: 1,
+}  # Pretend to be full for testing purposes
+SERVER_CAPS = ACTUAL_CAPS  # Default server capabilities
+LOADING_PORT = 7999  # Port for the loading page
 
 
 # Function to handle user logout
@@ -92,7 +96,7 @@ FILE_PATHS = {
 
 # SHARED STATE AND SYNCHRONIZATION
 # Track active users per port and users in queue
-AWAITING_USERS = {port: {} for port in PORTS + [MONITORING_PORT]}
+AWAITING_USERS = {port: {} for port in PORTS + [MONITORING_PORT, LOADING_PORT]}
 WAITING_QUEUE = []  # List of users waiting to connect
 QUEUE_LOCK = threading.Lock()  # Lock for thread-safe queue operations
 DENIED_USERS = {}  # Track users we want to deny access
@@ -288,7 +292,7 @@ def SelectTargetPort(client_id=None):
                 WAITING_QUEUE.append(client_id)
                 LOGGER.LogInfo(f"Added {client_id} to waiting queue")
     are_all_full = True
-    return ROUTING_PORT
+    return LOADING_PORT  # Redirect to loading page if all servers are full
 
 
 def SendRedirect(client_socket, port):
@@ -586,16 +590,22 @@ def HandleMonitorRequest(client_socket, file_path, port):
                 SendRedirectToLogin(client_socket)
             return True
 
-        # Make the server caps appear full
+        # Make the server caps appear full (toggle)
         if "/make_server_full" in path:
             if not is_authenticated:
                 SendRedirectToLogin(client_socket)
                 return True
 
-            for port in SERVER_CAPS.keys():
-                SERVER_CAPS[port] = 0
+            global SERVER_CAPS
+            # Toggle SERVER_CAPS between ACTUAL_CAPS and PRETEND_CAPS
+            if SERVER_CAPS == ACTUAL_CAPS:
+                SERVER_CAPS = PRETEND_CAPS
+                state = "full"
+            else:
+                SERVER_CAPS = ACTUAL_CAPS
+                state = "default"
 
-            msg = json.dumps({"response": "make_server_full received"})
+            msg = json.dumps({"response": "make_server_full received", "state": state})
             client_socket.sendall(
                 f"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {len(msg)}\r\n\r\n{msg}".encode()
             )
@@ -912,8 +922,11 @@ def StartStaticServers(max_connections=None):
             target=lambda p=port, f=file_path, m=max_conn: StaticServer(p, f, m)
         ).start()
 
-    # logger.log_info(f"Starting loading server on port {ROUTING_PORT} with no real max connections")
-    # threading.Thread(target=lambda p=ROUTING_PORT, f=file_paths["loading"], m=100000: static_server(p, f, m)).start()
+    # Start loading server on LOADING_PORT with no connection cap
+    LOGGER.LogInfo(f"Starting loading server on port {LOADING_PORT} with no max connections")
+    threading.Thread(
+        target=lambda: StaticServer(LOADING_PORT, FILE_PATHS["loading"], max_connections=1000000)
+    ).start()
 
 
 def FetchCurrentUser(session_id):
