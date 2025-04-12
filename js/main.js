@@ -70,6 +70,12 @@ async function disconnectUser(userId, port) {
             throw new Error("Failed to disconnect user");
         }
 
+        let result = await response.json();
+
+        if ('response' in result) {
+            alert(`Failed to disconnect user : ${result.response}`);
+        }
+
         // Refresh stats immediately after disconnection
         fetchStats();
     } catch (error) {
@@ -371,6 +377,13 @@ function updateGraphs() {
 
     // Update percentage distribution graph
     drawStackedAreaGraph("percentageGraph", trafficHistory);
+}
+
+// Make all servers full
+function make_server_full() {
+    fetch("/make_server_full", {
+        method: "POST",
+    });
 }
 
 // Logout function

@@ -76,7 +76,7 @@
         setInterval(sendHeartbeat, 2500);
 
         window.addEventListener('beforeunload', () => {
-            navigator.sendBeacon(`${window.location.href}leave?client_id=${clientId}`);
+            navigator.sendBeacon(`/leave?client_id=${clientId}`);
         });
     </script>
 </body>

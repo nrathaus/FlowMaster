@@ -7,6 +7,9 @@ import time
 from datetime import datetime, timedelta
 import FlowMasterClasses
 
+
+logger = FlowMasterClasses.Logger("../server.log")  # Set up logging
+
 # CONFIGURATION CONSTANTS
 current_username = None  # Variable to store the current username
 
@@ -24,15 +27,31 @@ ip = socket.gethostbyname(
     socket.gethostname()
 )  # Get the local machine's IP address automatically
 
-ports = [8000, 8001, 8002]  # Ports for content servers and routing
-server_caps = [
-    60,
-    150,
-    90,
-]  # Maximal amount of Connections allowed to connect to each port [in order], in this example: [20%, 50%, 30%]
-routing_port = 8080  # Port for the load balancer
-monitoring_port = 8081  # Port for the monitoring dashboard
-loading_port = 7999  # Port used for redirect if all servers are busy
+ports = [8000, 8001, 8002]  # Ports for content servers
+server_caps = {
+    8000: 60,
+    8001: 150,
+    8002: 90,
+}  # Maximal amount of Connections allowed to connect to each port
+are_all_full = False
+
+if len(ports) != len(server_caps):
+    logger.log_error("Ports and their capabilities list don't match")
+
+found_ports = []
+for port in ports:
+    if port not in server_caps:
+        logger.log_error(f"Port '{port}' missing its capability")
+
+    found_ports.append(port)
+
+if len(found_ports) != len(ports):
+    logger.log_error(
+        f"Ports list contains duplicates or missing ports, found ports: {found_ports}, vs: {ports}"
+    )
+
+ROUTING_PORT = 8080  # Port for the load balancer
+MONITORING_PORT = 8081  # Port for the monitoring dashboard
 socket_timeout = 5  # Socket timeout in seconds
 
 # Paths to HTML files served by different servers
@@ -55,9 +74,10 @@ timeout_threshold = (
 delay_between_routing = 0.35  # Delay between routing requests
 
 # SHARED STATE AND SYNCHRONIZATION
-active_users = {
-    port: {} for port in ports + [loading_port] + [monitoring_port]
-}  # Track active users per port
+# Track active users per port and users in queue
+active_users = {port: {} for port in ports + [MONITORING_PORT]}
+waiting_queue = []  # List of users waiting to connect
+queue_lock = threading.Lock()  # Lock for thread-safe queue operations
 denied_users = {}  # Track users we want to deny access
 
 users_lock = (
@@ -85,7 +105,6 @@ permissions = FlowMasterClasses.Database(
     "Permissions",
 )  # Allowed permissions
 user_session_manager = FlowMasterClasses.UserSession()  # Manage user sessions
-logger = FlowMasterClasses.Logger("../server.log")  # Set up logging
 
 
 def test_ports():
@@ -94,10 +113,11 @@ def test_ports():
     Returns:
         bool: True if all ports are available, False otherwise.
     """
-    for port in ports + [routing_port, monitoring_port]:
+    for port in ports + [ROUTING_PORT, MONITORING_PORT]:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as test_socket:
             try:
                 test_socket.bind((ip, port))  # Try to bind to the port
+                test_socket.close()
             except socket.error:
                 logger.log_error(f"Port {port} is not available!")
                 return False
@@ -137,7 +157,7 @@ def update_active_users():
         current_time = datetime.now()
 
         with users_lock:  # Ensure thread-safe access to shared data
-            for port in ports + [monitoring_port]:
+            for port in ports + [MONITORING_PORT]:
                 # Find users who haven't sent a heartbeat within the threshold
                 inactive_users = [
                     client_id
@@ -151,9 +171,9 @@ def update_active_users():
                     del active_users[port][client_id]
 
             # Log current active user counts for monitoring
-            logger.log_info("--- Current Active Users ---")
-            for port in ports:
-                logger.log_info(f"Port {port}: {len(active_users[port])} active users")
+            # logger.log_info("--- Current Active Users ---")
+            # for port in ports:
+            #     logger.log_info(f"Port {port}: {len(active_users[port])} active users")
 
 
 def get_server_loads():
@@ -166,61 +186,89 @@ def get_server_loads():
         return {port: len(active_users[port]) for port in ports}
 
 
-def get_monitoring_data():
+def get_queue_data():
     """
-    Get comprehensive monitoring data for all servers.
-    Formats data for the monitoring dashboard, including total counts
-    and details about individual servers.
+    Get comprehensive queue data for all servers and queue.
     Returns:
-        dict: Dictionary with timestamp, per-server stats, and totals.
+        dict:
     """
     with users_lock:  # Protect shared data during read
-        return {
-            "timestamp": datetime.now().isoformat(),
-            "servers": {
-                str(port): {
-                    "active_users": len(active_users[port]),
-                    "users": list(active_users[port].keys()),
-                }
-                for port in ports
-            },
-            "total_users": sum(len(active_users[port]) for port in ports),
-        }
+        with queue_lock:
+            return {
+                "timestamp": datetime.now().isoformat(),
+                "waiting": len(waiting_queue),
+                "total": sum(len(server_caps[port]) for port in ports),
+            }
 
 
-def select_target_port():
+def get_monitoring_data():
+    """
+    Get comprehensive monitoring data for all servers and queue.
+    Returns:
+        dict: Dictionary with timestamp, per-server stats, queue, and totals.
+    """
+    with users_lock:  # Protect shared data during read
+        with queue_lock:
+            return {
+                "timestamp": datetime.now().isoformat(),
+                "servers": {
+                    str(port): {
+                        "active_users": len(active_users[port]),
+                        "users": list(active_users[port].keys()),
+                        "capacity": server_caps[port],
+                    }
+                    for _, port in enumerate(ports)
+                },
+                "queue": {
+                    "count": len(waiting_queue),
+                    "users": list(waiting_queue),
+                },
+                "total_users": sum(len(active_users[port]) for port in ports),
+            }
+
+
+def select_target_port(client_id=None):
     """
     Select the least loaded port for new connections (load balancing).
-    Uses a simple algorithm: choose the server with the fewest active users.
-    If multiple servers tie for the lowest load, selects the one with the lowest port number.
+    If all servers are busy, adds client to queue and returns ROUTING_PORT.
+    Args:
+        client_id (str): Optional client identifier for queue tracking
     Returns:
-        int: The selected port number for the new connection.
+        int: The selected port number or ROUTING_PORT if queued
     """
     loads = get_server_loads()
-    # Pair each load with its corresponding server capacity for normalization
-    percentageoccupied = [
-        (load / cap) for load, cap in zip(loads.values(), server_caps)
-    ]
 
-    logger.log_info(f"Current server loads: {json.dumps(loads)} - {percentageoccupied}")
+    percentage_occupied = []
+    for port in ports:
+        percentage_occupied.append(loads[port] / server_caps[port])
 
-    min_load = min(percentageoccupied)  # Find the minimum percentage load
+    # percentage_occupied = [
+    #     (load / cap) for load, cap in zip(loads.values(), server_caps[port])
+    # ]
+
+    min_load = min(percentage_occupied)
+
     if min_load < 1:
         min_load_ports = [
             port
-            for port, percentage in zip(loads.keys(), percentageoccupied)
+            for port, percentage in zip(loads.keys(), percentage_occupied)
             if percentage == min_load
-        ]  # Get all servers with the minimum percentage load
-
-        # Use the lowest port number among the minimally loaded servers
+        ]
         selected_port = min(min_load_ports)
         logger.log_info(f"Selected port {selected_port} with load {min_load}")
+        are_all_full = False
         return selected_port
-    else:
-        return loading_port
+
+    if client_id is not None:
+        with queue_lock:
+            if client_id not in waiting_queue:
+                waiting_queue.append(client_id)
+                logger.log_info(f"Added {client_id} to waiting queue")
+    are_all_full = True
+    return ROUTING_PORT
 
 
-def send_redirect(client_socket, port):
+def send_redirect(client_socket, port, flag=are_all_full):
     """
     Send HTTP redirect response to client.
     Creates and sends a 302 Found HTTP response directing the client
@@ -229,8 +277,11 @@ def send_redirect(client_socket, port):
         client_socket (socket): The client's socket connection.
         port (int): The port to redirect the client to.
     """
+
     redirect_response = (
-        f"HTTP/1.1 302 Found\r\n" f"Location: http://{ip}:{port}/\r\n" "\r\n"
+        f"HTTP/1.1 302 Found\r\n"
+        f"Location: http://{ip}:{port}/?full={are_all_full}\r\n"
+        "\r\n"
     ).encode()
 
     client_socket.sendall(redirect_response)
@@ -254,28 +305,52 @@ def send_file(file_path: str, client_socket):
             content = file.read()
 
         response = (
-            b"HTTP/1.1 200 OK\r\n"
-            b"Content-Type: " + content_type.encode() + b"\r\n"
-            b"Content-Length: " + str(len(content)).encode() + b"\r\n"
-            b"\r\n" + content
-        )
-        client_socket.sendall(response)
+            "HTTP/1.1 200 OK\r\n"
+            f"Content-Type: {content_type}\r\n"
+            f"Content-Length: {len(content)}\r\n"
+            f"\r\n"
+        ).encode()
+
+        client_socket.sendall(response + content)
         logger.log_info(f"Sent file: {file_path}")
 
     except FileNotFoundError:
         logger.log_warning(f"File not found: {file_path}")
-        client_socket.sendall(
-            b"HTTP/1.1 404 Not Found\r\n"
-            b"Content-Type: text/plain\r\n"
-            b"\r\nFile not found."
-        )
+        response = (
+            "HTTP/1.1 404 Not Found\r\n"
+            "Content-Type: text/plain\r\n"
+            "\r\nFile not found."
+        ).encode()
+        client_socket.sendall(response)
     except Exception as e:
         logger.log_error(f"Error sending file: {str(e)}")
-        client_socket.sendall(
-            b"HTTP/1.1 500 Internal Server Error\r\n"
-            b"Content-Type: text/plain\r\n"
-            b"\r\nServer error."
-        )
+        response = (
+            "HTTP/1.1 500 Internal Server Error\r\n"
+            "Content-Type: text/plain\r\n"
+            "\r\nServer error."
+        ).encode()
+        client_socket.sendall(response)
+
+
+def handle_queue_request(client_socket):
+    """
+    Handle requests for queue statistics.
+    Sends JSON-formatted queue data to the client.
+    Args:
+        client_socket (socket): The client's socket connection.
+    """
+    queue = get_queue_data()  # Get current queue statistics
+
+    response = (
+        f"HTTP/1.1 200 OK\r\n"
+        f"Content-Type: application/json\r\n"
+        f"Access-Control-Allow-Origin: *\r\n"  # Allow cross-origin requests for dashboard
+        f"\r\n"
+        f"{json.dumps(queue)}"  # Convert stats to JSON
+    ).encode()
+
+    client_socket.sendall(response)
+    logger.log_info("Sent monitoring stats")
 
 
 def handle_stats_request(client_socket):
@@ -300,30 +375,30 @@ def handle_stats_request(client_socket):
     logger.log_info("Sent monitoring stats")
 
 
-def user_info():
-    """Endpoint to fetch the current username."""
-    logger.log_info(
-        f"User info request with session_id: {session_id}"
-    )  # Log session ID for debugging
+# def user_info():
+#     """Endpoint to fetch the current username."""
+#     # Get session ID from cookies
+#     session_id = request.cookies.get("session_id")
 
-    # Get session ID from cookies
-    session_id = request.cookies.get("session_id")
+#     logger.log_info(
+#         f"User info request with session_id: {session_id}"
+#     )  # Log session ID for debugging
 
-    # Debug log to see what session ID we're getting
-    logger.log_info(f"User info request with session_id: {session_id}")
+#     # Debug log to see what session ID we're getting
+#     logger.log_info(f"User info request with session_id: {session_id}")
 
-    # Get username from session
-    username = (
-        user_session_manager.get_username(session_id) if session_id else None
-    )  # Get username from session
-    logger.log_info(
-        f"Found username: {username}"
-    )  # Log the found username for debugging
+#     # Get username from session
+#     username = (
+#         user_session_manager.get_username(session_id) if session_id else None
+#     )  # Get username from session
+#     logger.log_info(
+#         f"Found username: {username}"
+#     )  # Log the found username for debugging
 
-    # Debug log to see what username we found
-    logger.log_info(f"Found username: {username}")
+#     # Debug log to see what username we found
+#     logger.log_info(f"Found username: {username}")
 
-    return jsonify({"username": username if username else "Unknown"})
+#     return json.dumps({"username": username if username else "Unknown"})
 
 
 def handle_user_request(client_socket, file_path, port):
@@ -342,8 +417,10 @@ def handle_user_request(client_socket, file_path, port):
         if not service_users or not monitor_server:
             sys.exit()
 
+        logger.log_info(f"handle_user_request recv() on port {port}")
         data = client_socket.recv(9999).decode()  # Read data from client (HTTP request)
 
+        logger.log_info("handle_user_request fileno()")
         if client_socket.fileno() == -1:  # Check if socket is still valid
             logger.log_error(f"Socket already closed on port {port}")
             return False
@@ -352,6 +429,7 @@ def handle_user_request(client_socket, file_path, port):
         if "client_id=" in data:
             client_id = data.split("client_id=")[1].split(" ")[0]
 
+        logger.log_info(f"handle_user_request {client_id=}")
         if client_id is not None and client_id in denied_users:
             # If user has been denied access, ignore him
             logger.log_info(f"Detected blocked access from {client_id} ({port})")
@@ -394,13 +472,13 @@ def handle_user_request(client_socket, file_path, port):
                 if client_id in active_users[port]:
                     del active_users[port][client_id]
 
-            msg = "{'response': 'leave received'}"
+            msg = json.dumps({'response': 'leave received'})
             client_socket.sendall(
-                f"HTTP/1.1 200 OK\r\nContent-Length: {len(msg)}\r\n\r\n{msg}".encode()
+                f"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {len(msg)}\r\n\r\n{msg}".encode()
             )
             return True
 
-        if port == routing_port:  # Handle routing server (load balancer) requests
+        if port == ROUTING_PORT:  # Handle routing server (load balancer) requests
             selected_port = select_target_port()
             send_redirect(client_socket, selected_port)
             return True
@@ -411,13 +489,16 @@ def handle_user_request(client_socket, file_path, port):
                 active_users[port][client_id] = datetime.now()
 
         send_file(file_path, client_socket)
+        logger.log_info("handle_user_requset after send_file")
 
         return True
 
     except socket.timeout:
         logger.log_warning(f"Socket timeout occurred on port {port}")
     except Exception as e:
-        logger.log_error(f"An error occurred on port {port}: {str(e)}")
+        logger.log_error(
+            f"An error occurred on port while handling user request {port}: {str(e)}"
+        )
     finally:
         try:  # Always ensure the socket is closed
             client_socket.close()  # Close the socket
@@ -426,32 +507,32 @@ def handle_user_request(client_socket, file_path, port):
     return False
 
 
-def can_disconnect(username, USERNAMES, PERMISSIONS):
-    """
-    Determines if a user has permission to disconnect based on their admin status.
-    Args:
-        username (str): The username to check permissions for
-        USERNAMES (dict): Dictionary containing user information with structure {username: (password, is_admin)}
-        PERMISSIONS (dict): Dictionary containing permission information
-    Returns:
-        bool: True if the user has permission to disconnect, False otherwise
-    """
-    # Check if the username exists in the database
-    if username not in USERNAMES:
-        return False
+# def can_disconnect(username, USERNAMES, PERMISSIONS):
+#     """
+#     Determines if a user has permission to disconnect based on their admin status.
+#     Args:
+#         username (str): The username to check permissions for
+#         USERNAMES (dict): Dictionary containing user information with structure {username: (password, is_admin)}
+#         PERMISSIONS (dict): Dictionary containing permission information
+#     Returns:
+#         bool: True if the user has permission to disconnect, False otherwise
+#     """
+#     # Check if the username exists in the database
+#     if username not in USERNAMES:
+#         return False
 
-    # Get user information
-    user_info = USERNAMES.get(username)
+#     # Get user information
+#     user_info = USERNAMES.get(username)
 
-    # Check if user is an admin (admin flag is at index 1)
-    if isinstance(user_info, tuple) and len(user_info) > 1:
-        is_admin = user_info[1]
-        # Convert to bool if it's not already
-        if isinstance(is_admin, int):
-            is_admin = bool(is_admin)
-        return is_admin
+#     # Check if user is an admin (admin flag is at index 1)
+#     if isinstance(user_info, tuple) and len(user_info) > 1:
+#         is_admin = user_info[1]
+#         # Convert to bool if it's not already
+#         if isinstance(is_admin, int):
+#             is_admin = bool(is_admin)
+#         return is_admin
 
-    return False
+#     return False
 
 
 def handle_monitor_request(client_socket, file_path, port):
@@ -531,6 +612,11 @@ def handle_monitor_request(client_socket, file_path, port):
             send_file(file_paths["login"], client_socket)  # Always serve login page
             return True
 
+        # Handle queue request (for auth and non auth)
+        if path == "/queue":
+            handle_queue_request(client_socket)
+            return True
+
         # Handle stats request (for authenticated users only)
         if "/stats" in path:
             if is_authenticated:
@@ -539,12 +625,42 @@ def handle_monitor_request(client_socket, file_path, port):
                 send_redirect_to_login(client_socket)
             return True
 
+        # Make the server caps appear full
+        if "/make_server_full" in path:
+            if not is_authenticated:
+                send_redirect_to_login(client_socket)
+                return True
+            
+            for port in server_caps.keys():
+                server_caps[port] = 0
+
+            msg = json.dumps({"response": "make_server_full received"})
+            client_socket.sendall(
+                f"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {len(msg)}\r\n\r\n{msg}".encode()
+            )
+            return True
+
+        # Logout the user
+        if "/logout" in path:
+            if not is_authenticated:
+                send_redirect_to_login(client_socket)
+                return True
+            
+            handle_logout()
+            send_redirect_to_login(client_socket)
+            return True
+
         if "/disconnect" in path:  # Handle client leave requests
             if not usernames.GetSecondOfArray(current_username) == 1:
-                msg = "{'response': 'missing permissions'}"
-                client_socket.sendall(
-                    f"HTTP/1.1 200 OK\r\nContent-Length: {len(msg)}\r\n\r\n{msg}".encode()
-                )
+                msg = json.dumps({"response": "missing permissions"})
+                response = (
+                    "HTTP/1.1 200 OK\r\n"
+                    f"Content-Length: {len(msg)}\r\n"
+                    "Content-Type: application/json\r\n"
+                    "\r\n"
+                    f"{msg}"
+                ).encode()
+                client_socket.sendall(response)
                 logger.log_info("Did not have proper permissions to Disconnect")
                 return True
 
@@ -565,22 +681,28 @@ def handle_monitor_request(client_socket, file_path, port):
                     user_id = body_json["userId"]
 
             if user_id is None:
-                msg = "{'response': 'disconnect failed'}"
-                client_socket.sendall(
-                    f"HTTP/1.1 200 OK\r\nContent-Length: {len(msg)}\r\n\r\n{msg}".encode()
-                )
+                msg = json.dumps({"response": "disconnect failed"})
+                response = (
+                    "HTTP/1.1 200 OK\r\n"
+                    "Content-Type: application/json\r\n"
+                    f"Content-Length: {len(msg)}\r\n"
+                    "\r\n"
+                    f"{msg}"
+                ).encode()
+
+                client_socket.sendall()
                 return True
 
             with users_lock:
-                for check_port in ports + [monitoring_port]:
+                for check_port in ports + [MONITORING_PORT]:
                     if user_id in active_users[check_port]:
                         del active_users[check_port][user_id]
 
                 denied_users[user_id] = True
 
-            msg = "{'response': 'disconnect received'}"
+            msg = json.dumps({"response": "disconnect received"})
             client_socket.sendall(
-                f"HTTP/1.1 200 OK\r\nContent-Length: {len(msg)}\r\n\r\n{msg}".encode()
+                f"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {len(msg)}\r\n\r\n{msg}".encode()
             )
             return True
 
@@ -589,11 +711,11 @@ def handle_monitor_request(client_socket, file_path, port):
             response_json = json.dumps({"username": current_username})
 
             headers = (
-                f"HTTP/1.1 200 OK\r\n"
+                "HTTP/1.1 200 OK\r\n"
                 f"Content-Type: application/json\r\n"
                 f"Set-Cookie: session_id={session_id}; Path=/; HttpOnly; SameSite=Lax\r\n"
                 f"Content-Length: {len(response_json)}\r\n"
-                f"\r\n"
+                "\r\n"
             )
 
             client_socket.sendall((headers + response_json).encode())
@@ -611,14 +733,16 @@ def handle_monitor_request(client_socket, file_path, port):
                 send_file(no_leading_slash_path, client_socket)
                 return True
 
-        # Return the default page
+        logger.log_info(f"Return the '{file_path}' page")
         send_file(file_path, client_socket)
         return True
 
     except socket.timeout:
         logger.log_warning(f"Socket timeout occurred on port {port}")
     except Exception as e:
-        logger.log_error(f"An error occurred on port {port}: {str(e)}")
+        logger.log_error(
+            f"An error occurred on port while handling monitor request {port}: {str(e)}"
+        )
     finally:
         try:  # Always ensure the socket is closed
             client_socket.close()
@@ -634,7 +758,7 @@ def send_redirect_to_login(client_socket):
     """
     redirect_response = (
         f"HTTP/1.1 302 Found\r\n"
-        f"Location: http://{ip}:{monitoring_port}/login.html\r\n"
+        f"Location: http://{ip}:{MONITORING_PORT}/login.html\r\n"
         f"\r\n"
     ).encode()
 
@@ -673,7 +797,7 @@ def handle_login_request(client_socket, data):
             response = {
                 "success": True,
                 "message": "Login successful",
-                "redirect": f"http://{ip}:{monitoring_port}/tracker.html",
+                "redirect": f"http://{ip}:{MONITORING_PORT}/tracker.html",
             }
             response_json = json.dumps(response)
 
@@ -722,9 +846,9 @@ def monitoring_server():
     This server runs on its own thread and handles requests for monitoring data.
     """
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
-        server_socket.bind((ip, monitoring_port))
+        server_socket.bind((ip, MONITORING_PORT))
         server_socket.listen()
-        logger.log_info(f"Monitoring server listening on: {ip}:{monitoring_port}")
+        logger.log_info(f"Monitoring server listening on: {ip}:{MONITORING_PORT}")
 
         while monitor_server:
             client_socket, _ = server_socket.accept()  # Accept incoming connections
@@ -736,7 +860,7 @@ def monitoring_server():
                 target=lambda: handle_monitor_request(
                     client_socket,
                     file_paths["login"],
-                    monitoring_port,  # Default to login page
+                    MONITORING_PORT,  # Default to login page
                 )
             ).start()
 
@@ -748,9 +872,9 @@ def start_routing_server():
     least loaded content server. Runs on the main thread.
     """
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as routing_socket:
-        routing_socket.bind((ip, routing_port))
+        routing_socket.bind((ip, ROUTING_PORT))
         routing_socket.listen()
-        logger.log_info(f"Routing server listening on: {ip}:{routing_port}")
+        logger.log_info(f"Routing server listening on: {ip}:{ROUTING_PORT}")
 
         last_routing_time = time.time()
 
@@ -768,18 +892,18 @@ def start_routing_server():
             last_routing_time = time.time()  # Update last routing time
 
             threading.Thread(  # Handle each routing request in a separate thread
-                target=lambda: handle_user_request(client_socket, None, routing_port)
+                target=lambda: handle_user_request(client_socket, None, ROUTING_PORT)
             ).start()
 
 
-def static_server(port, file_path, max_connections=50):
+def static_server(port, file_path, max_connections):
     """
     Start a static content server on a specific port.
     Each static server serves one HTML file and handles client tracking.
     Args:
         port (int): Port number to listen on.
         file_path (str): Path to the HTML file to serve.
-        max_connections (int): Maximum allowed concurrent connections (default: 50)
+        max_connections (int): Maximum allowed concurrent connections
     """
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
         server_socket.bind((ip, port))
@@ -824,14 +948,8 @@ def start_static_servers(max_connections=None):
             target=lambda p=port, f=file_path, m=max_conn: static_server(p, f, m)
         ).start()
 
-    logger.log_info(
-        f"Starting loading server on port {loading_port} with no real max connections"
-    )
-    threading.Thread(
-        target=lambda p=loading_port, f=file_paths["loading"], m=100000: static_server(
-            p, f, m
-        )
-    ).start()
+    # logger.log_info(f"Starting loading server on port {ROUTING_PORT} with no real max connections")
+    # threading.Thread(target=lambda p=ROUTING_PORT, f=file_paths["loading"], m=100000: static_server(p, f, m)).start()
 
 
 def main():
@@ -846,8 +964,8 @@ def main():
         sys.exit()
 
     # Log access information
-    logger.log_info(f"Server accessible at: http://{ip}:{routing_port}")
-    logger.log_info(f"Monitoring interface at: http://{ip}:{monitoring_port}")
+    logger.log_info(f"Server accessible at: http://{ip}:{ROUTING_PORT}")
+    logger.log_info(f"Monitoring interface at: http://{ip}:{MONITORING_PORT}")
     logger.log_info(
         f"Direct access ports: {', '.join(f'http://{ip}:{port}' for port in ports)}"
     )
@@ -859,7 +977,7 @@ def main():
     threading.Thread(target=update_active_users, daemon=True).start()
 
     # Start all content servers in separate threads
-    start_static_servers(server_caps)
+    start_static_servers(server_caps[port])
 
     # Start monitoring server in a separate thread
     threading.Thread(target=monitoring_server, daemon=True).start()
