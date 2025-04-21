@@ -5,6 +5,7 @@ import sys
 import threading
 import time
 from datetime import datetime, timedelta
+from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 import FlowMasterClasses
 
 
@@ -28,12 +29,7 @@ ip = socket.gethostbyname(
 )  # Get the local machine's IP address automatically
 
 ports = [8000, 8001, 8002]  # Ports for content servers
-server_caps = {
-    8000: 60,
-    8001: 150,
-    8002: 90,
-}  # Maximal amount of Connections allowed to connect to each port
-are_all_full = False
+server_caps = {8000: 60, 8001: 150, 8002: 90}  # Maximal amount of Connections allowed to connect to each port
 
 if len(ports) != len(server_caps):
     logger.log_error("Ports and their capabilities list don't match")
@@ -46,10 +42,8 @@ for port in ports:
     found_ports.append(port)
 
 if len(found_ports) != len(ports):
-    logger.log_error(
-        f"Ports list contains duplicates or missing ports, found ports: {found_ports}, vs: {ports}"
-    )
-
+    logger.log_error(f"Ports list contains duplicates or missing ports, found ports: {found_ports}, vs: {ports}")
+       
 ROUTING_PORT = 8080  # Port for the load balancer
 MONITORING_PORT = 8081  # Port for the monitoring dashboard
 socket_timeout = 5  # Socket timeout in seconds
@@ -171,9 +165,9 @@ def update_active_users():
                     del active_users[port][client_id]
 
             # Log current active user counts for monitoring
-            # logger.log_info("--- Current Active Users ---")
-            # for port in ports:
-            #     logger.log_info(f"Port {port}: {len(active_users[port])} active users")
+            logger.log_info("--- Current Active Users ---")
+            for port in ports:
+                logger.log_info(f"Port {port}: {len(active_users[port])} active users")
 
 
 def get_server_loads():
@@ -242,6 +236,9 @@ def select_target_port(client_id=None):
     for port in ports:
         percentage_occupied.append(loads[port] / server_caps[port])
 
+    load_percentages = [f"{percent*100:.1f}%" for percent in percentage_occupied]
+    logger.log_info(f"current loads are: {load_percentages}")
+
     # percentage_occupied = [
     #     (load / cap) for load, cap in zip(loads.values(), server_caps[port])
     # ]
@@ -268,7 +265,7 @@ def select_target_port(client_id=None):
     return ROUTING_PORT
 
 
-def send_redirect(client_socket, port, flag=are_all_full):
+def send_redirect(client_socket, port):
     """
     Send HTTP redirect response to client.
     Creates and sends a 302 Found HTTP response directing the client
@@ -279,9 +276,7 @@ def send_redirect(client_socket, port, flag=are_all_full):
     """
 
     redirect_response = (
-        f"HTTP/1.1 302 Found\r\n"
-        f"Location: http://{ip}:{port}/?full={are_all_full}\r\n"
-        "\r\n"
+        f"HTTP/1.1 302 Found\r\n" f"Location: http://{ip}:{port}/\r\n" "\r\n"
     ).encode()
 
     client_socket.sendall(redirect_response)
@@ -375,32 +370,6 @@ def handle_stats_request(client_socket):
     logger.log_info("Sent monitoring stats")
 
 
-# def user_info():
-#     """Endpoint to fetch the current username."""
-#     # Get session ID from cookies
-#     session_id = request.cookies.get("session_id")
-
-#     logger.log_info(
-#         f"User info request with session_id: {session_id}"
-#     )  # Log session ID for debugging
-
-#     # Debug log to see what session ID we're getting
-#     logger.log_info(f"User info request with session_id: {session_id}")
-
-#     # Get username from session
-#     username = (
-#         user_session_manager.get_username(session_id) if session_id else None
-#     )  # Get username from session
-#     logger.log_info(
-#         f"Found username: {username}"
-#     )  # Log the found username for debugging
-
-#     # Debug log to see what username we found
-#     logger.log_info(f"Found username: {username}")
-
-#     return json.dumps({"username": username if username else "Unknown"})
-
-
 def handle_user_request(client_socket, file_path, port):
     """
     Handle incoming user HTTP requests based on the server type and request path.
@@ -416,11 +385,8 @@ def handle_user_request(client_socket, file_path, port):
     try:
         if not service_users or not monitor_server:
             sys.exit()
-
-        logger.log_info(f"handle_user_request recv() on port {port}")
+        
         data = client_socket.recv(9999).decode()  # Read data from client (HTTP request)
-
-        logger.log_info("handle_user_request fileno()")
         if client_socket.fileno() == -1:  # Check if socket is still valid
             logger.log_error(f"Socket already closed on port {port}")
             return False
@@ -429,7 +395,6 @@ def handle_user_request(client_socket, file_path, port):
         if "client_id=" in data:
             client_id = data.split("client_id=")[1].split(" ")[0]
 
-        logger.log_info(f"handle_user_request {client_id=}")
         if client_id is not None and client_id in denied_users:
             # If user has been denied access, ignore him
             logger.log_info(f"Detected blocked access from {client_id} ({port})")
@@ -446,9 +411,7 @@ def handle_user_request(client_socket, file_path, port):
                 else:
                     connection_type = "returning"
 
-        logger.log_info(
-            f"Detected '{connection_type}' connection from {client_id} on port {port}"
-        )
+        # logger.log_info(f"Detected '{connection_type}' connection from {client_id} on port {port}")
 
         if client_id is not None and "/heartbeat" in data:
             with users_lock:
@@ -489,7 +452,7 @@ def handle_user_request(client_socket, file_path, port):
                 active_users[port][client_id] = datetime.now()
 
         send_file(file_path, client_socket)
-        logger.log_info("handle_user_requset after send_file")
+        # logger.log_info("handle_user_requset after send_file")
 
         return True
 
@@ -977,7 +940,7 @@ def main():
     threading.Thread(target=update_active_users, daemon=True).start()
 
     # Start all content servers in separate threads
-    start_static_servers(server_caps[port])
+    start_static_servers([server_caps[port] for port in ports])
 
     # Start monitoring server in a separate thread
     threading.Thread(target=monitoring_server, daemon=True).start()
