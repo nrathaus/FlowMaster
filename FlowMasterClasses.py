@@ -4,8 +4,8 @@ import uuid
 from datetime import datetime
 
 
-# Class 1
-class Database:
+# Class 1 - DaTaBaSe
+class dtbs:
     def __init__(self, db_file_path, rows_array, table_name):
         self.user_library = {}
         try:
@@ -62,12 +62,12 @@ class Database:
             return -1
 
 
-# Class 2
-class UserSession:
+# Class 2 - USeR SessiON
+class usrson:
     def __init__(self):
         self.sessions = {}  # Dictionary to hold session data
 
-    def create_session(self, username):
+    def CreateSession(self, username):
         """Create a new session for a user."""
         session_id = str(uuid.uuid4())
         self.sessions[session_id] = {
@@ -76,22 +76,22 @@ class UserSession:
         }
         return session_id
 
-    def validate_session(self, session_id):
+    def ValidateSession(self, session_id):
         """Validate if a session is active."""
         return session_id in self.sessions
 
-    def destroy_session(self, session_id):
+    def DestroySession(self, session_id):
         """Destroy a session."""
         if session_id in self.sessions:
             del self.sessions[session_id]
 
-    def get_username(self, session_id):
+    def GetUsername(self, session_id):
         """Get the username associated with a session."""
         return self.sessions.get(session_id, {}).get("username")
 
 
-# Class 3
-class Logger:
+# Class 3 - LoGGeR
+class lggr:
     def __init__(self, log_file_path):
         logging.basicConfig(
             level=logging.INFO,
@@ -103,25 +103,25 @@ class Logger:
         )
 
     @staticmethod
-    def log_info(message):
+    def LogInfo(message):
         """Log an info message."""
         logging.info(message)
 
     @staticmethod
-    def log_warning(message):
+    def LogWarning(message):
         """Log a warning message."""
         logging.warning(message)
 
     @staticmethod
-    def log_error(message):
+    def LogError(message):
         """Log an error message."""
         logging.error(message)
 
 
-# Class 4
-class FileManager:
+# Class 4 - FiLeMaNaGeR
+class flmngr:
     @staticmethod
-    def read_file(file_path):
+    def ReadFile(file_path):
         """Read the content of a file."""
         try:
             with open(file_path, "r") as file:
@@ -134,7 +134,7 @@ class FileManager:
             return None
 
     @staticmethod
-    def write_file(file_path, content):
+    def WriteFile(file_path, content):
         """Write content to a file."""
         try:
             with open(file_path, "w") as file:
@@ -143,7 +143,7 @@ class FileManager:
             logging.error(f"Error writing to file {file_path}: {str(e)}")
 
     @staticmethod
-    def file_exists(file_path):
+    def FileExists(file_path):
         """Check if a file exists."""
         try:
             with open(file_path, "r"):
