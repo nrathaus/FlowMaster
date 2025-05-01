@@ -1,3 +1,31 @@
+# *TO DO LIST:*
+
+# 1. Use Unimplemented Files:
+#   1.1. Use Loading for when server = full
+#       1.1.1. Add Check if servers no longer full it redirect
+#       1.1.2. Make sure it doesn't break everything
+#   1.2. Use Disconnect for when you've been disconnected
+
+# 2. Use Your JinjaTest Code
+#   2.1. Replace index1-3
+#       2.1.1. Pray
+
+# 3. Add Encryption:
+#   3.1. Add Enc to Python
+#   3.2. Add Enc to DB
+#       3.2.1. Make Sure they work well together
+
+# 4. Make Project portfolio
+#   4.1. Use ProjectDesc.txt
+#       4.1.1 Translate to Hebrew
+#   4.2. Use Chatgpt to add more
+#   4.3. Use Project portfolio example
+#       4.3.1. Copy certain parts
+#   4.4. Add short videos
+#   4.5. Make Presentation
+
+# 5. Pray
+
 import json
 import signal
 import socket
