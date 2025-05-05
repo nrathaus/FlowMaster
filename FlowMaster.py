@@ -10,21 +10,16 @@
 #   2.1. Replace index1-3
 #       2.1.1. Pray
 
-# 3. Add Encryption:
-#   3.1. Add Enc to Python
-#   3.2. Add Enc to DB
-#       3.2.1. Make Sure they work well together
+# 3. Make Project portfolio
+#   3.1. Use ProjectDesc.txt
+#       3.1.1 Translate to Hebrew
+#   3.2. Use Chatgpt to add more
+#   3.3. Use Project portfolio example
+#       3.3.1. Copy certain parts
+#   3.4. Add short videos
+#   3.5. Make Presentation
 
-# 4. Make Project portfolio
-#   4.1. Use ProjectDesc.txt
-#       4.1.1 Translate to Hebrew
-#   4.2. Use Chatgpt to add more
-#   4.3. Use Project portfolio example
-#       4.3.1. Copy certain parts
-#   4.4. Add short videos
-#   4.5. Make Presentation
-
-# 5. Pray
+# 4. Pray
 
 import json
 import signal
@@ -34,6 +29,7 @@ import threading
 import time
 from datetime import datetime, timedelta
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound  # TO USE
+import hashlib
 import FlowMasterClasses
 
 # LOGGER INITIALIZATION
@@ -119,6 +115,7 @@ USERNAMES = FlowMasterClasses.dtbs(
 PERMISSIONS = FlowMasterClasses.dtbs(
     "PUP.db", ["PermissionNum", "CanView", "CanDisconnect"], "Permissions"
 )  # Allowed permissions
+print(USERNAMES.user_library)
 USER_SESSION_MANAGER = FlowMasterClasses.usrson()  # Manage user sessions
 
 
@@ -160,6 +157,16 @@ def SignalHandler(*_):
     time.sleep(1)  # Wait for a moment before exiting
     sys.exit(0)
 
+
+def Hash(string: str) -> str:
+    """
+    As I am a very lazy person I don't like to write that long line of code every time I need to hash something, so I made a function for it.
+    Args:
+        string (str): The string to hash.
+    Returns:
+        str: The MD5 hash of the input string.
+    """
+    return hashlib.md5(string.encode()).hexdigest()
 
 def UpdateActiveUsers():
     """
@@ -607,7 +614,7 @@ def HandleMonitorRequest(client_socket, file_path, port):
             return True
 
         if "/disconnect" in path:  # Handle client leave requests
-            if not USERNAMES.GetSecondOfArray(CURRENT_USERNAME) == 1:
+            if not USERNAMES.GetSecondOfArray(Hash(CURRENT_USERNAME)) == 1:
                 msg = json.dumps({"response": "missing permissions"})
                 response = (
                     "HTTP/1.1 200 OK\r\n"
@@ -739,11 +746,14 @@ def HandleLoginRequest(client_socket, data):
 
         username = login_data.get("username")
         password = login_data.get("password")
+        
+        encrypted_username = Hash(username)
+        encrypted_password = Hash(password)
 
         # Check credentials against USERNAMES dictionary
         if (
-            username in USERNAMES.user_library
-            and USERNAMES.user_library[username][0] == password
+            encrypted_username in USERNAMES.user_library
+            and USERNAMES.user_library[encrypted_username][0] == encrypted_password
         ):
             # Update current_username when login is successful
             CURRENT_USERNAME = username
