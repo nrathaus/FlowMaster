@@ -51,6 +51,7 @@ PRETEND_CAPS = {
 }  # Pretend to be full for testing purposes
 SERVER_CAPS = ACTUAL_CAPS  # Default server capabilities
 LOADING_PORT = 7999  # Port for the loading page
+DISCONNECT_PORT = 8888  # Port for the disconnect page
 
 
 # Function to handle user logout
@@ -96,7 +97,7 @@ FILE_PATHS = {
 
 # SHARED STATE AND SYNCHRONIZATION
 # Track active users per port and users in queue
-AWAITING_USERS = {port: {} for port in PORTS + [MONITORING_PORT, LOADING_PORT]}
+AWAITING_USERS = {port: {} for port in PORTS + [MONITORING_PORT, LOADING_PORT, DISCONNECT_PORT]}
 WAITING_QUEUE = []  # List of users waiting to connect
 QUEUE_LOCK = threading.Lock()  # Lock for thread-safe queue operations
 DENIED_USERS = {}  # Track users we want to deny access
@@ -426,11 +427,20 @@ def HandleUserRequest(client_socket, file_path, port):
             client_id = data.split("client_id=")[1].split(" ")[0]
 
         if client_id is not None and client_id in DENIED_USERS:
-            # If user has been denied access, ignore him
+            # If user has been denied access, send redirect to disconnect page
             LOGGER.LogInfo(f"Detected blocked access from {client_id} ({port})")
-            msg = "Access has been denied"
-            response = f"HTTP/1.1 403 Forbidden\r\nContent-Length: {len(msg)}\r\n\r\n{msg}".encode()
-            client_socket.sendall(response)
+            try:
+                redirect_response = (
+                    f"HTTP/1.1 302 Found\r\n"
+                    f"Location: http://{IP}:{DISCONNECT_PORT}/disconnect.html\r\n"
+                    f"\r\n"
+                ).encode()
+                client_socket.sendall(redirect_response)
+            except Exception as e:
+                LOGGER.LogError(f"Error sending redirect to disconnect page: {str(e)}")
+                msg = "Access has been denied"
+                response = f"HTTP/1.1 403 Forbidden\r\nContent-Length: {len(msg)}\r\n\r\n{msg}".encode()
+                client_socket.sendall(response)
             return True
 
         connection_type = "new"
@@ -625,7 +635,7 @@ def HandleMonitorRequest(client_socket, file_path, port):
             if not USERNAMES.GetSecondOfArray(Hash(CURRENT_USERNAME)) == 1:
                 msg = json.dumps({"response": "missing permissions"})
                 response = (
-                    "HTTP/1.1 200 OK\r\n"
+                    "HTTP/1.1 403 Forbidden\r\n"
                     f"Content-Length: {len(msg)}\r\n"
                     "Content-Type: application/json\r\n"
                     "\r\n"
@@ -654,14 +664,14 @@ def HandleMonitorRequest(client_socket, file_path, port):
             if user_id is None:
                 msg = json.dumps({"response": "disconnect failed"})
                 response = (
-                    "HTTP/1.1 200 OK\r\n"
+                    "HTTP/1.1 400 Bad Request\r\n"
                     "Content-Type: application/json\r\n"
                     f"Content-Length: {len(msg)}\r\n"
                     "\r\n"
                     f"{msg}"
                 ).encode()
 
-                client_socket.sendall()
+                client_socket.sendall(response)
                 return True
 
             with USERS_LOCK:
@@ -671,10 +681,14 @@ def HandleMonitorRequest(client_socket, file_path, port):
 
                 DENIED_USERS[user_id] = True
 
-            msg = json.dumps({"response": "disconnect received"})
-            client_socket.sendall(
-                f"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {len(msg)}\r\n\r\n{msg}".encode()
-            )
+            # Send HTTP redirect to disconnect.html after processing disconnect
+            redirect_response = (
+                f"HTTP/1.1 302 Found\r\n"
+                f"Location: http://{IP}:{DISCONNECT_PORT}/disconnect.html\r\n"
+                f"\r\n"
+            ).encode()
+            client_socket.sendall(redirect_response)
+            LOGGER.LogInfo(f"Redirected user {user_id} to disconnect.html")
             return True
 
         # If we are authenticated and we are asked for /user-info return it
@@ -926,6 +940,12 @@ def StartStaticServers(max_connections=None):
     LOGGER.LogInfo(f"Starting loading server on port {LOADING_PORT} with no max connections")
     threading.Thread(
         target=lambda: StaticServer(LOADING_PORT, FILE_PATHS["loading"], max_connections=1000000)
+    ).start()
+
+    # Start disconnect server on DISCONNECT_PORT with no connection cap
+    LOGGER.LogInfo(f"Starting disconnect server on port {DISCONNECT_PORT} with no max connections")
+    threading.Thread(
+        target=lambda: StaticServer(DISCONNECT_PORT, FILE_PATHS["disconnect"], max_connections=1000000)
     ).start()
 
 

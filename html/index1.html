@@ -50,10 +50,15 @@
         // Add this line to display the client ID
         document.getElementById('displayClientId').textContent = clientId;
 
+        let failedHeartbeatCount = 0;
+        const maxFailedHeartbeats = 3;
+
         async function sendHeartbeat() {
             try {
                 const response = await fetch(`${window.location.href}heartbeat?client_id=${clientId}`);
                 if (response.ok) {
+                    failedHeartbeatCount = 0; // Reset on success
+
                     // Check for redirect header
                     const redirectUrl = response.headers.get('X-Redirect');
                     if (redirectUrl) {
@@ -66,9 +71,18 @@
                     if (activeCount) {
                         document.getElementById('activeUsers').textContent = activeCount;
                     }
+                } else {
+                    failedHeartbeatCount++;
+                    if (failedHeartbeatCount >= maxFailedHeartbeats) {
+                        window.location.href = `http://${window.location.hostname}:8888/disconnect.html`;
+                    }
                 }
             } catch (error) {
                 console.error('Heartbeat error:', error);
+                failedHeartbeatCount++;
+                if (failedHeartbeatCount >= maxFailedHeartbeats) {
+                    window.location.href = `http://${window.location.hostname}:8888/disconnect.html`;
+                }
             }
         }
 

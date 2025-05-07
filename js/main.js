@@ -64,7 +64,17 @@ async function disconnectUser(userId, port) {
                 userId: userId,
                 port: port,
             }),
+            redirect: "manual" // prevent automatic redirect following
         });
+
+        if (response.status === 302) {
+            // Manually handle redirect by navigating to the Location header
+            const redirectUrl = response.headers.get("Location");
+            if (redirectUrl) {
+                window.location.href = redirectUrl;
+                return;
+            }
+        }
 
         if (!response.ok) {
             throw new Error("Failed to disconnect user");
