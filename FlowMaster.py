@@ -1,5 +1,4 @@
 # *TO DO LIST:*
-
 # 1. Use Unimplemented Files:
 #   1.1. Use Loading for when server = full
 #       1.1.1. Add Check if servers no longer full it redirect
@@ -115,7 +114,6 @@ USERNAMES = FlowMasterClasses.dtbs(
 PERMISSIONS = FlowMasterClasses.dtbs(
     "PUP.db", ["PermissionNum", "CanView", "CanDisconnect"], "Permissions"
 )  # Allowed permissions
-print(USERNAMES.user_library)
 USER_SESSION_MANAGER = FlowMasterClasses.usrson()  # Manage user sessions
 
 
