@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-    <meta charset="UTF-8">
+    <meta charset="UTF-8" />
     <title>Multi-Port Server Stats Monitor</title>
     <style>
         /* Previous styles remain the same */
@@ -12,18 +13,21 @@
             padding: 0 20px;
             background-color: #f5f5f5;
         }
+
         .stats-container {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
             gap: 20px;
             margin-top: 20px;
         }
+
         .stats-card {
             background-color: white;
             border-radius: 8px;
             padding: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
+
         .stats-card h2 {
             margin-top: 0;
             color: #333;
@@ -32,23 +36,28 @@
             align-items: center;
             gap: 10px;
         }
+
         .status-indicator {
             display: inline-block;
             width: 10px;
             height: 10px;
             border-radius: 50%;
         }
+
         .status-active {
-            background-color: #4CAF50;
+            background-color: #4caf50;
         }
+
         .status-inactive {
             background-color: #f44336;
         }
+
         .user-list {
             margin-top: 10px;
             font-size: 0.9em;
             color: #666;
         }
+
         /* New styles for user management */
         .user-item {
             display: flex;
@@ -57,6 +66,7 @@
             padding: 5px 0;
             border-bottom: 1px solid #eee;
         }
+
         .disconnect-btn {
             background-color: #ff4444;
             color: white;
@@ -66,29 +76,34 @@
             cursor: pointer;
             font-size: 0.8em;
         }
+
         .disconnect-btn:hover {
             background-color: #cc0000;
         }
+
         /* Rest of the previous styles */
         .total-stats {
             background-color: white;
             border-radius: 8px;
             padding: 20px;
             margin-top: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
+
         .graph-card {
             background-color: white;
             border-radius: 8px;
             padding: 20px;
             margin-top: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
+
         .graph-container {
             position: relative;
             height: 300px;
             margin-top: 20px;
         }
+
         .graph-legend {
             display: flex;
             gap: 20px;
@@ -96,36 +111,43 @@
             justify-content: center;
             flex-wrap: wrap;
         }
+
         .legend-item {
             display: flex;
             align-items: center;
             gap: 5px;
         }
+
         .legend-color {
             width: 20px;
             height: 3px;
         }
+
         .x-axis-label {
             font-size: 12px;
             fill: #666;
         }
+
         .area {
             opacity: 0.7;
         }
+
         /* Filter info style */
         .filter-info {
             background-color: white;
             border-radius: 8px;
             padding: 15px;
             margin-top: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
             display: flex;
             align-items: center;
             justify-content: space-between;
         }
+
         .filter-info p {
             margin: 0;
         }
+
         .filter-badge {
             background-color: #e0e0e0;
             border-radius: 4px;
@@ -133,7 +155,9 @@
             font-weight: bold;
         }
     </style>
+    <script src="/js/main.js"></script>
 </head>
+
 <body>
     <!-- Previous HTML structure remains the same -->
     <h1>Multi-Port Activity Monitor</h1>
@@ -151,7 +175,10 @@
 
     <!-- Filter info -->
     <div class="filter-info">
-        <p>Auto-filtering connections from host IP: <span class="filter-badge" id="hostIpBadge"></span></p>
+        <p>
+            Auto-filtering connections from host IP:
+            <span class="filter-badge" id="hostIpBadge"></span>
+        </p>
         <p>These connections are hidden from counts and graphs.</p>
     </div>
 
@@ -164,12 +191,11 @@
     <div class="graph-card">
         <h2>Total Connections (Last 5 Minutes)</h2>
         <div class="graph-container">
-            <svg id="totalConnectionsGraph" width="100%" height="100%" preserveAspectRatio="none">
-            </svg>
+            <svg id="totalConnectionsGraph" width="100%" height="100%" preserveAspectRatio="none"></svg>
         </div>
         <div class="graph-legend">
             <div class="legend-item">
-                <div class="legend-color" style="background: #8884d8;"></div>
+                <div class="legend-color" style="background: #8884d8"></div>
                 <span>All Ports</span>
             </div>
         </div>
@@ -178,20 +204,19 @@
     <div class="graph-card">
         <h2>Individual Server Connections (Last 5 Minutes)</h2>
         <div class="graph-container">
-            <svg id="serverConnectionsGraph" width="100%" height="100%" preserveAspectRatio="none">
-            </svg>
+            <svg id="serverConnectionsGraph" width="100%" height="100%" preserveAspectRatio="none"></svg>
         </div>
         <div class="graph-legend">
             <div class="legend-item">
-                <div class="legend-color" style="background: #82ca9d;"></div>
+                <div class="legend-color" style="background: #82ca9d"></div>
                 <span>Port 8000</span>
             </div>
             <div class="legend-item">
-                <div class="legend-color" style="background: #ffc658;"></div>
+                <div class="legend-color" style="background: #ffc658"></div>
                 <span>Port 8001</span>
             </div>
             <div class="legend-item">
-                <div class="legend-color" style="background: #ff8042;"></div>
+                <div class="legend-color" style="background: #ff8042"></div>
                 <span>Port 8002</span>
             </div>
         </div>
@@ -200,418 +225,25 @@
     <div class="graph-card">
         <h2>Connection Distribution (Last 5 Minutes)</h2>
         <div class="graph-container">
-            <svg id="percentageGraph" width="100%" height="100%" preserveAspectRatio="none">
-            </svg>
+            <svg id="percentageGraph" width="100%" height="100%" preserveAspectRatio="none"></svg>
         </div>
         <div class="graph-legend">
             <div class="legend-item">
-                <div class="legend-color" style="background: #82ca9d;"></div>
+                <div class="legend-color" style="background: #82ca9d"></div>
                 <span>Port 8000</span>
             </div>
             <div class="legend-item">
-                <div class="legend-color" style="background: #ffc658;"></div>
+                <div class="legend-color" style="background: #ffc658"></div>
                 <span>Port 8001</span>
             </div>
             <div class="legend-item">
-                <div class="legend-color" style="background: #ff8042;"></div>
+                <div class="legend-color" style="background: #ff8042"></div>
                 <span>Port 8002</span>
             </div>
         </div>
     </div>
 
-    <div class="stats-container" id="statsContainer">
-    </div>
-
-    <script>
-        const MONITORED_PORTS = [8000, 8001, 8002];
-        const UPDATE_INTERVAL = 2500; // 2.5 seconds
-        const HISTORY_LENGTH = 120; // Store 5 minutes of data
-        let trafficHistory = [];
-
-        // Get the server IP address
-        const serverIp = window.location.hostname;
-        document.getElementById('serverIp').textContent = serverIp;
-        document.getElementById('hostIpBadge').textContent = serverIp;
-
-        // Modified createServerCard function to include user disconnect buttons
-        function createServerCard(port) {
-            const card = document.createElement('div');
-            card.className = 'stats-card';
-            card.innerHTML = `
-                <h2>
-                    <span class="status-indicator status-inactive" id="status-${port}"></span>
-                    Port ${port}
-                </h2>
-                <p>Active Users: <span id="activeUsers-${port}">Checking...</span></p>
-                <p>Last Update: <span id="lastUpdate-${port}">-</span></p>
-                <div class="user-list" id="userList-${port}"></div>
-            `;
-            return card;
-        }
-
-        // New function to create user list items with disconnect buttons
-        function createUserListItem(userId, port) {
-            return `
-                <div class="user-item">
-                    <span>${userId}</span>
-                    <button class="disconnect-btn" onclick="disconnectUser('${userId}', ${port})">
-                        Disconnect
-                    </button>
-                </div>
-            `;
-        }
-        // Get current user information
-        async function fetchCurrentUser() {
-            try {
-                console.log("Fetching user info...");
-                const response = await fetch('/user-info');
-                console.log("Response status:", response.status);
-                
-                if (!response.ok) {
-                    console.error('Failed to fetch user info:', response.statusText);
-                    document.getElementById('currentUser').textContent = 'Error';
-                    return;
-                }
-                
-                const data = await response.json();
-                console.log("Received user data:", data);
-                document.getElementById('currentUser').textContent = data.username;
-            } catch (error) {
-                console.error('Error fetching user info:', error);
-                document.getElementById('currentUser').textContent = 'Error';
-            }
-        }
-
-        // New function to handle user disconnection
-        async function disconnectUser(userId, port) {
-            try {
-                const response = await fetch('/disconnect', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        userId: userId,
-                        port: port
-                    })
-                });
-
-                if (!response.ok) {
-                    throw new Error('Failed to disconnect user');
-                }
-
-                // Refresh stats immediately after disconnection
-                fetchStats();
-            } catch (error) {
-                console.error('Error disconnecting user:', error);
-                alert('Failed to disconnect user. Please try again.');
-            }
-        }
-
-        const statsContainer = document.getElementById('statsContainer');
-        MONITORED_PORTS.forEach(port => {
-            statsContainer.appendChild(createServerCard(port));
-        });
-
-        // Modified update logic in fetchStats to include disconnect buttons
-        async function fetchStats() {
-            try {
-                const response = await fetch(`/stats`);
-                if (!response.ok) throw new Error('Stats fetch failed');
-
-                const data = await response.json();
-                const timestamp = new Date().toLocaleTimeString();
-
-                // Filter out the host IP from the data
-                const filteredData = filterHostIp(data);
-
-                // Previous stats update logic with filtered data
-                const total = filteredData.total_users || 1;
-
-                const trafficDataPoint = {
-                    timestamp,
-                    total: filteredData.total_users,
-                };
-
-                MONITORED_PORTS.forEach(port => {
-                    const users = filteredData.servers[port]?.active_users || 0;
-                    trafficDataPoint[`port${port}`] = users;
-                });
-
-                trafficHistory.push(trafficDataPoint);
-                if (trafficHistory.length > HISTORY_LENGTH) {
-                    trafficHistory.shift();
-                }
-
-                document.getElementById('totalUsers').textContent = filteredData.total_users;
-                document.getElementById('lastUpdate').textContent = timestamp;
-
-                // Modified user list update logic with filtered data
-                Object.entries(filteredData.servers).forEach(([port, serverData]) => {
-                    const statusElement = document.getElementById(`status-${port}`);
-                    const usersElement = document.getElementById(`activeUsers-${port}`);
-                    const updateElement = document.getElementById(`lastUpdate-${port}`);
-                    const userListElement = document.getElementById(`userList-${port}`);
-
-                    if (statusElement && usersElement && updateElement) {
-                        statusElement.className = `status-indicator ${serverData.active_users > 0 ? 'status-active' : 'status-inactive'}`;
-                        usersElement.textContent = serverData.active_users;
-                        updateElement.textContent = timestamp;
-
-                        if (userListElement) {
-                            userListElement.innerHTML = serverData.users.length > 0
-                                ? serverData.users.map(userId => createUserListItem(userId, port)).join('')
-                                : 'No active clients';
-                        }
-                    }
-                });
-
-                // Update the graphs
-                updateGraphs();
-            } catch (error) {
-                console.error('Error fetching stats:', error);
-                MONITORED_PORTS.forEach(port => {
-                    const statusElement = document.getElementById(`status-${port}`);
-                    const usersElement = document.getElementById(`activeUsers-${port}`);
-                    if (statusElement && usersElement) {
-                        statusElement.className = 'status-indicator status-inactive';
-                        usersElement.textContent = 'Error';
-                    }
-                });
-            }
-        }
-
-        // Function to filter out the host IP from stats
-        function filterHostIp(data) {
-            // Create a deep copy of the data
-            const filteredData = JSON.parse(JSON.stringify(data));
-
-            // Calculate the original total
-            let originalTotal = 0;
-            Object.values(data.servers).forEach(server => {
-                originalTotal += server.active_users;
-            });
-
-            // Filter each server's users
-            let filteredTotal = 0;
-
-            Object.entries(filteredData.servers).forEach(([port, serverData]) => {
-                // Filter out the server IP
-                const originalCount = serverData.users.length;
-                serverData.users = serverData.users.filter(userId => userId !== serverIp);
-
-                // Update the active_users count
-                const removedCount = originalCount - serverData.users.length;
-                serverData.active_users -= removedCount;
-                if (serverData.active_users < 0) serverData.active_users = 0;
-
-                // Add to the filtered total
-                filteredTotal += serverData.active_users;
-            });
-
-            // Update the total_users count
-            filteredData.total_users = filteredTotal;
-
-            return filteredData;
-        }
-
-        // Previous graph drawing functions remain the same
-        function drawLineGraph(svgId, data, options) {
-            const svg = document.getElementById(svgId);
-            const width = svg.clientWidth;
-            const height = svg.clientHeight;
-            const padding = 40;
-            const rightPadding = 60;
-
-            svg.innerHTML = '';
-
-            if (data.length < 2) return;
-
-            const maxValue = options.maxValue || Math.max(...data.map(point =>
-                Math.max(...options.lines.map(line => point[line.key] || 0))
-            ));
-
-            const xScale = (i) => padding + (i * (width - padding - rightPadding) / (HISTORY_LENGTH - 1));
-            const yScale = (value) => height - padding - (value * (height - 2 * padding) / maxValue);
-
-            // Draw axes and grid
-            const axisColor = '#ccc';
-            svg.innerHTML += `
-                <line x1="${padding}" y1="${height - padding}" x2="${width - rightPadding}" y2="${height - padding}" stroke="${axisColor}" />
-                <line x1="${padding}" y1="${padding}" x2="${padding}" y2="${height - padding}" stroke="${axisColor}" />
-            `;
-
-            // Draw grid lines and labels
-            for (let i = 0; i <= 5; i++) {
-                const y = padding + i * (height - 2 * padding) / 5;
-                const value = maxValue - (i * maxValue / 5);
-                svg.innerHTML += `
-                    <line x1="${padding}" y1="${y}" x2="${width - rightPadding}" y2="${y}" stroke="${axisColor}" stroke-dasharray="2,2" />
-                    <text x="${padding - 5}" y="${y}" text-anchor="end" alignment-baseline="middle" font-size="12">
-                        ${options.formatValue ? options.formatValue(value) : Math.round(value)}
-                    </text>
-                `;
-            }
-
-            // Draw time labels
-            for (let i = 0; i < data.length; i += 24) {
-                if (i < data.length) {
-                    const x = xScale(i);
-                    svg.innerHTML += `
-                        <text x="${x}" y="${height - padding + 20}"
-                              text-anchor="middle" class="x-axis-label">
-                            ${data[i].timestamp}
-                        </text>
-                    `;
-                }
-            }
-
-            // Draw lines
-            options.lines.forEach(line => {
-                let path = `M ${xScale(0)} ${yScale(data[0][line.key] || 0)}`;
-                data.forEach((point, i) => {
-                    path += ` L ${xScale(i)} ${yScale(point[line.key] || 0)}`;
-                });
-                svg.innerHTML += `<path d="${path}" stroke="${line.color}" fill="none" stroke-width="${line.width || 1}" />`;
-            });
-        }
-
-        function drawStackedAreaGraph(svgId, data) {
-            const svg = document.getElementById(svgId);
-            const width = svg.clientWidth;
-            const height = svg.clientHeight;
-            const padding = 40;
-            const rightPadding = 60;
-
-            svg.innerHTML = '';
-
-            if (data.length < 2) return;
-
-            const xScale = (i) => padding + (i * (width - padding - rightPadding) / (HISTORY_LENGTH - 1));
-            const yScale = (value) => height - padding - (value * (height - 2 * padding) / 100);
-
-            // Draw axes and grid (keep existing axes code...)
-            const axisColor = '#ccc';
-            svg.innerHTML += `
-                <line x1="${padding}" y1="${height - padding}" x2="${width - rightPadding}" y2="${height - padding}" stroke="${axisColor}" />
-                <line x1="${padding}" y1="${padding}" x2="${padding}" y2="${height - padding}" stroke="${axisColor}" />
-            `;
-
-            // Keep existing grid lines and labels code...
-            for (let i = 0; i <= 5; i++) {
-                const y = padding + i * (height - 2 * padding) / 5;
-                const value = 100 - (i * 20);
-                svg.innerHTML += `
-                    <line x1="${padding}" y1="${y}" x2="${width - rightPadding}" y2="${y}" stroke="${axisColor}" stroke-dasharray="2,2" />
-                    <text x="${padding - 5}" y="${y}" text-anchor="end" alignment-baseline="middle" font-size="12">
-                        ${value}%
-                    </text>
-                `;
-            }
-
-            // Keep existing time labels code...
-            for (let i = 0; i < data.length; i += 24) {
-                if (i < data.length) {
-                    const x = xScale(i);
-                    svg.innerHTML += `
-                        <text x="${x}" y="${height - padding + 20}"
-                              text-anchor="middle" class="x-axis-label">
-                            ${data[i].timestamp}
-                        </text>
-                    `;
-                }
-            }
-
-            // Draw stacked areas with calculated percentages
-            const areas = [
-                { key: 'port8000', color: '#82ca9d' },
-                { key: 'port8001', color: '#ffc658' },
-                { key: 'port8002', color: '#ff8042' }
-            ];
-
-            data.forEach(point => {
-                const total = point.total || 1; // Prevent division by zero
-                let runningPercentage = 0;
-
-                areas.forEach(area => {
-                    point[`${area.key}_percent`] = (point[area.key] / total * 100);
-                    point[`${area.key}_stack`] = runningPercentage + point[`${area.key}_percent`];
-                    runningPercentage += point[`${area.key}_percent`];
-                });
-            });
-
-            areas.forEach((area, index) => {
-                let path = `M ${xScale(0)} ${yScale(data[0][`${area.key}_stack`] || 0)}`;
-
-                data.forEach((point, i) => {
-                    path += ` L ${xScale(i)} ${yScale(point[`${area.key}_stack`] || 0)}`;
-                });
-
-                const prevKey = index > 0 ? `${areas[index - 1].key}_stack` : null;
-                path += ` L ${xScale(data.length - 1)} ${yScale(prevKey ? (data[data.length - 1][prevKey] || 0) : 0)}`;
-
-                for (let i = data.length - 1; i >= 0; i--) {
-                    path += ` L ${xScale(i)} ${yScale(prevKey ? (data[i][prevKey] || 0) : 0)}`;
-                }
-
-                path += ' Z';
-                svg.innerHTML += `<path d="${path}" fill="${area.color}" class="area" />`;
-            });
-        }
-
-        function updateGraphs() {
-            // Update total connections graph
-            drawLineGraph('totalConnectionsGraph', trafficHistory, {
-                lines: [
-                    { key: 'total', color: '#8884d8', width: 2 }
-                ],
-                formatValue: value => Math.round(value)
-            });
-
-            // Update individual server connections graph
-            drawLineGraph('serverConnectionsGraph', trafficHistory, {
-                lines: [
-                    { key: 'port8000', color: '#82ca9d' },
-                    { key: 'port8001', color: '#ffc658' },
-                    { key: 'port8002', color: '#ff8042' }
-                ],
-                formatValue: value => Math.round(value)
-            });
-
-            // Update percentage distribution graph
-            drawStackedAreaGraph('percentageGraph', trafficHistory);
-        }
-
-        // Logout function
-        function logout() {
-            fetch('/logout', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ action: 'logout' })
-            }).then(response => {
-                if (response.ok) {
-                    // Redirect to login page
-                    window.location.href = '/login.html';
-                } else {
-                    alert('Logout failed. Please try again.');
-                }
-            }).catch(error => {
-                console.error('Error during logout:', error);
-                alert('Logout failed. Please try again.');
-            });
-        }
-
-        // Initial fetch
-
-        fetchStats();
-
-        // Set up regular polling
-        setInterval(fetchStats, UPDATE_INTERVAL);
-
-        // Handle window resize
-        window.addEventListener('resize', updateGraphs);
-    </script>
+    <div class="stats-container" id="statsContainer"></div>
 </body>
+
 </html>
