@@ -1,21 +1,18 @@
 # *TO DO LIST:*
-# 1. Use Unimplemented Files:
-#   1.1. Use Disconnect for when you've been disconnected
+# 1. Use Your JinjaTest Code
+#   1.1. Replace index1-3
+#       1.1.1. Pray
 
-# 2. Use Your JinjaTest Code
-#   2.1. Replace index1-3
-#       2.1.1. Pray
+# 2. Make Project portfolio
+#   2.1. Use ProjectDesc.txt
+#       2.1.1 Translate to Hebrew
+#   2.2. Use Chatgpt to add more
+#   2.3. Use Project portfolio example
+#       2.3.1. Copy certain parts
+#   2.4. Add short videos
+#   2.5. Make Presentation
 
-# 3. Make Project portfolio
-#   3.1. Use ProjectDesc.txt
-#       3.1.1 Translate to Hebrew
-#   3.2. Use Chatgpt to add more
-#   3.3. Use Project portfolio example
-#       3.3.1. Copy certain parts
-#   3.4. Add short videos
-#   3.5. Make Presentation
-
-# 4. Pray
+# 3. Pray
 
 import json
 import signal
@@ -97,7 +94,9 @@ FILE_PATHS = {
 
 # SHARED STATE AND SYNCHRONIZATION
 # Track active users per port and users in queue
-AWAITING_USERS = {port: {} for port in PORTS + [MONITORING_PORT, LOADING_PORT, DISCONNECT_PORT]}
+AWAITING_USERS = {
+    port: {} for port in PORTS + [MONITORING_PORT, LOADING_PORT, DISCONNECT_PORT]
+}
 WAITING_QUEUE = []  # List of users waiting to connect
 QUEUE_LOCK = threading.Lock()  # Lock for thread-safe queue operations
 DENIED_USERS = {}  # Track users we want to deny access
@@ -170,6 +169,7 @@ def Hash(string: str) -> str:
         str: The MD5 hash of the input string.
     """
     return hashlib.md5(string.encode()).hexdigest()
+
 
 def UpdateActiveUsers():
     """
@@ -768,7 +768,7 @@ def HandleLoginRequest(client_socket, data):
 
         username = login_data.get("username")
         password = login_data.get("password")
-        
+
         encrypted_username = Hash(username)
         encrypted_password = Hash(password)
 
@@ -937,15 +937,23 @@ def StartStaticServers(max_connections=None):
         ).start()
 
     # Start loading server on LOADING_PORT with no connection cap
-    LOGGER.LogInfo(f"Starting loading server on port {LOADING_PORT} with no max connections")
+    LOGGER.LogInfo(
+        f"Starting loading server on port {LOADING_PORT} with no max connections"
+    )
     threading.Thread(
-        target=lambda: StaticServer(LOADING_PORT, FILE_PATHS["loading"], max_connections=1000000)
+        target=lambda: StaticServer(
+            LOADING_PORT, FILE_PATHS["loading"], max_connections=1000000
+        )
     ).start()
 
     # Start disconnect server on DISCONNECT_PORT with no connection cap
-    LOGGER.LogInfo(f"Starting disconnect server on port {DISCONNECT_PORT} with no max connections")
+    LOGGER.LogInfo(
+        f"Starting disconnect server on port {DISCONNECT_PORT} with no max connections"
+    )
     threading.Thread(
-        target=lambda: StaticServer(DISCONNECT_PORT, FILE_PATHS["disconnect"], max_connections=1000000)
+        target=lambda: StaticServer(
+            DISCONNECT_PORT, FILE_PATHS["disconnect"], max_connections=1000000
+        )
     ).start()
 
 
