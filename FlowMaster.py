@@ -1,18 +1,4 @@
-# *TO DO LIST:*
-# 1. Use Your JinjaTest Code
-#   1.1. Replace index1-3
-#       1.1.1. Pray
 
-# 2. Make Project portfolio
-#   2.1. Use ProjectDesc.txt
-#       2.1.1 Translate to Hebrew
-#   2.2. Use Chatgpt to add more
-#   2.3. Use Project portfolio example
-#       2.3.1. Copy certain parts
-#   2.4. Add short videos
-#   2.5. Make Presentation
-
-# 3. Pray
 
 import json
 import signal
@@ -21,7 +7,6 @@ import sys
 import threading
 import time
 from datetime import datetime, timedelta
-from jinja2 import Environment, FileSystemLoader, TemplateNotFound  # TO USE
 import hashlib
 import FlowMasterClasses
 
@@ -118,6 +103,7 @@ USERNAMES = FlowMasterClasses.dtbs(
 PERMISSIONS = FlowMasterClasses.dtbs(
     "PUP.db", ["PermissionNum", "CanView", "CanDisconnect"], "Permissions"
 )  # Allowed permissions
+PERMCANDISCONNECT = [key for key, perm in PERMISSIONS.user_library.items() if len(perm) > 1 and perm[1] == True]  # Permissions that allow disconnecting users
 USER_SESSION_MANAGER = FlowMasterClasses.usrson()  # Manage user sessions
 
 
@@ -632,7 +618,7 @@ def HandleMonitorRequest(client_socket, file_path, port):
             return True
 
         if "/disconnect" in path:  # Handle client leave requests
-            if not USERNAMES.GetSecondOfArray(Hash(CURRENT_USERNAME)) == 1:
+            if not USERNAMES.GetSecondOfArray(Hash(CURRENT_USERNAME)) in PERMCANDISCONNECT:
                 msg = json.dumps({"response": "missing permissions"})
                 response = (
                     "HTTP/1.1 403 Forbidden\r\n"
