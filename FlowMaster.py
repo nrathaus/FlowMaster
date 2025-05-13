@@ -1,5 +1,3 @@
-
-
 import json
 import signal
 import socket
@@ -103,7 +101,11 @@ USERNAMES = FlowMasterClasses.dtbs(
 PERMISSIONS = FlowMasterClasses.dtbs(
     "PUP.db", ["PermissionNum", "CanView", "CanDisconnect"], "Permissions"
 )  # Allowed permissions
-PERMCANDISCONNECT = [key for key, perm in PERMISSIONS.user_library.items() if len(perm) > 1 and perm[1] == True]  # Permissions that allow disconnecting users
+PERMCANDISCONNECT = [
+    key
+    for key, perm in PERMISSIONS.user_library.items()
+    if len(perm) > 1 and perm[1] == True
+]  # Permissions that allow disconnecting users
 USER_SESSION_MANAGER = FlowMasterClasses.usrson()  # Manage user sessions
 
 
@@ -618,7 +620,10 @@ def HandleMonitorRequest(client_socket, file_path, port):
             return True
 
         if "/disconnect" in path:  # Handle client leave requests
-            if not USERNAMES.GetSecondOfArray(Hash(CURRENT_USERNAME)) in PERMCANDISCONNECT:
+            if (
+                not USERNAMES.GetSecondOfArray(Hash(CURRENT_USERNAME))
+                in PERMCANDISCONNECT
+            ):
                 msg = json.dumps({"response": "missing permissions"})
                 response = (
                     "HTTP/1.1 403 Forbidden\r\n"
