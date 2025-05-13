@@ -57,9 +57,7 @@ MONITORING_PORT = 8081  # Port for the monitoring dashboard
 SOCKET_TIMEOUT = 5  # Socket timeout in seconds
 AUTHENTICATED_SESSIONS = {}  # Dictionary to track authenticated sessions
 HEARTBEAT_INTERVAL = 2.5  # Time between heartbeat checks (in seconds)
-TIMEOUT_THRESHOLD = (
-    1800  # Time after which a client is considered inactive (in seconds)
-)
+TIMEOUT_THRESHOLD = 600  # Time after which a client is considered inactive (in seconds)
 DELAY_BETWEEN_ROUTING = 0.35  # Delay between routing requests
 
 # Paths to HTML files served by different servers
@@ -127,10 +125,10 @@ def TestPorts():
 
 def SignalHandler(*_):
     """
-    Handle graceful shutdown on SIGINT (Ctrl+C).
-    This ensures that the program exits cleanly when terminated by user.
-    Args:
-        *_: Ignored signal parameters.
+    Handles graceful shutdown of the server upon receiving a SIGINT (Ctrl+C) signal.
+    This function ensures that the server and its associated resources are properly
+    terminated, including shutting down client connections and stopping server operations.
+        *_: Ignored signal parameters, typically signal number and frame.
     """
     global MONITOR_SERVER, SERVICE_USERS, CLIENT_SOCKETS
     LOGGER.LogInfo("Shutting down server - waiting for 1 second")
@@ -149,21 +147,46 @@ def SignalHandler(*_):
 
 def Hash(string: str) -> str:
     """
-    As I am a very lazy person I don't like to write that long line of code every time I need to hash something, so I made a function for it.
-    Args:
-        string (str): The string to hash.
-    Returns:
-        str: The MD5 hash of the input string.
+    Hashes a given string using the MD5 algorithm.
+
+    This function provides a convenient way to generate an MD5 hash for a given string.
+
+        string (str): The input string to be hashed.
+
+        str: The MD5 hash of the input string as a hexadecimal string.
     """
     return hashlib.md5(string.encode()).hexdigest()
 
 
 def UpdateActiveUsers():
     """
-    Background task to maintain active user counts.
-    Periodically checks for and removes inactive users based on
-    their last activity timestamp. Runs continuously in a separate thread.
+    Monitors and updates the list of active users by removing inactive users
+    based on their last heartbeat timestamp.
+    This function runs in a loop, periodically checking the activity of users
+    across specified ports. Users who have not sent a heartbeat within the
+    defined timeout threshold are considered inactive and are removed from
+    the active user list. The function also logs the current count of active
+    users for monitoring purposes.
+    Key Variables:
+    - SERVICE_USERS: A flag indicating whether the service is running.
+    - HEARTBEAT_INTERVAL: The interval (in seconds) between consecutive checks.
+    - TIMEOUT_THRESHOLD: The maximum allowed time (in seconds) since the last
+      heartbeat before a user is considered inactive.
+    - USERS_LOCK: A threading lock to ensure thread-safe access to shared data.
+    - AWAITING_USERS: A dictionary mapping ports to dictionaries of user IDs
+      and their last active timestamps.
+    - PORTS: A list of ports being monitored for user activity.
+    - MONITORING_PORT: An additional port used for monitoring purposes.
+    - LOGGER: A logging utility for recording information.
+    Behavior:
+    - Periodically checks user activity on all monitored ports.
+    - Removes users who have been inactive beyond the timeout threshold.
+    - Logs the number of active users for each port.
+    Note:
+    This function is designed to be run in a separate thread to continuously
+    monitor user activity without blocking other operations.
     """
+
     while SERVICE_USERS:
         time.sleep(HEARTBEAT_INTERVAL)  # Wait between checks
         current_time = datetime.now()
@@ -190,9 +213,13 @@ def UpdateActiveUsers():
 
 def GetServerLoads():
     """
-    Get the current load (number of active users) of each content server.
-    Returns:
-        dict: Dictionary mapping port numbers to user counts.
+    Fetches the current load of each content server.
+
+    This function retrieves the number of active users for each content server by
+    accessing shared data protected by a lock to ensure thread safety.
+
+        dict: A dictionary where the keys are port numbers (int) and the values
+        are the corresponding user counts (int) for each server.
     """
     with USERS_LOCK:  # Protect shared data during read
         return {port: len(AWAITING_USERS[port]) for port in PORTS}
@@ -200,9 +227,14 @@ def GetServerLoads():
 
 def GetQueueData():
     """
-    Get comprehensive queue data for all servers and queue.
+    Retrieves data about the current state of the queue and server capacities.
+    This function is thread-safe, utilizing locks to protect shared data during
+    the read operation. It returns a dictionary containing the following information:
+    - `timestamp`: The current timestamp in ISO 8601 format.
+    - `waiting`: The number of items currently in the waiting queue.
+    - `total`: The total number of items across all server capacities.
     Returns:
-        dict:
+        dict: A dictionary with keys `timestamp`, `waiting`, and `total`.
     """
     with USERS_LOCK:  # Protect shared data during read
         with QUEUE_LOCK:
@@ -215,9 +247,21 @@ def GetQueueData():
 
 def GetMonitoringData():
     """
-    Get comprehensive monitoring data for all servers and queue.
+    Retrieves monitoring data for the server, including active users, queue information,
+    and total users across all servers.
+
     Returns:
-        dict: Dictionary with timestamp, per-server stats, queue, and totals.
+        dict: A dictionary containing the following keys:
+            - "timestamp" (str): The current timestamp in ISO 8601 format.
+            - "servers" (dict): A dictionary where each key is a server port (str) and
+              the value is another dictionary with:
+                - "active_users" (int): The number of active users on the server.
+                - "users" (list): A list of user identifiers currently on the server.
+                - "capacity" (int): The maximum capacity of the server.
+            - "queue" (dict): A dictionary containing:
+                - "count" (int): The number of users in the waiting queue.
+                - "users" (list): A list of user identifiers in the waiting queue.
+            - "total_users" (int): The total number of users across all servers.
     """
     with USERS_LOCK:  # Protect shared data during read
         with QUEUE_LOCK:
@@ -241,13 +285,22 @@ def GetMonitoringData():
 
 def SelectTargetPort(client_id=None):
     """
-    Select the least loaded port for new connections (load balancing).
-    If all servers are busy, adds client to queue and returns ROUTING_PORT.
+    Selects the target port with the minimum load from a predefined list of ports.
+    If all ports are fully occupied, optionally adds the client to a waiting queue
+    and redirects to a loading port.
     Args:
-        client_id (str): Optional client identifier for queue tracking
+        client_id (optional): The ID of the client requesting a port. If provided
+                              and all ports are full, the client is added to a
+                              waiting queue.
     Returns:
-        int: The selected port number or ROUTING_PORT if queued
+        int: The selected port with the minimum load if available.
+        str: A loading port identifier if all ports are fully occupied.
+    Logs:
+        - Current load percentages of all ports.
+        - Selected port and its load percentage.
+        - Addition of a client to the waiting queue if applicable.
     """
+
     loads = GetServerLoads()
 
     percentage_occupied = []
@@ -256,10 +309,6 @@ def SelectTargetPort(client_id=None):
 
     load_percentages = [f"{percent*100:.1f}%" for percent in percentage_occupied]
     LOGGER.LogInfo(f"current loads are: {load_percentages}")
-
-    # percentage_occupied = [
-    #     (load / cap) for load, cap in zip(loads.values(), server_caps[port])
-    # ]
 
     min_load = min(percentage_occupied)
 
@@ -285,14 +334,13 @@ def SelectTargetPort(client_id=None):
 
 def SendRedirect(client_socket, port):
     """
-    Send HTTP redirect response to client.
-    Creates and sends a 302 Found HTTP response directing the client
-    to the selected content server.
+    Sends an HTTP 302 redirect response to the client, redirecting them to a specified port.
     Args:
-        client_socket (socket): The client's socket connection.
-        port (int): The port to redirect the client to.
+        client_socket (socket.socket): The socket object representing the client connection.
+        port (int): The port number to which the client should be redirected.
+    Returns:
+        None
     """
-
     redirect_response = (
         f"HTTP/1.1 302 Found\r\n" f"Location: http://{IP}:{port}/\r\n" "\r\n"
     ).encode()
@@ -303,10 +351,21 @@ def SendRedirect(client_socket, port):
 
 def SendFile(file_path: str, client_socket):
     """
-    Send file content to client with proper HTTP headers.
+    Sends a file over a client socket as an HTTP response.
     Args:
-        file_path (str): Path to the file to send.
-        client_socket (socket): The client's socket connection.
+        file_path (str): The path to the file to be sent.
+        client_socket: The socket object used to send the HTTP response.
+    Behavior:
+        - Determines the content type based on the file extension.
+        - Checks if the file exists using FlowMasterClasses.flmngr.FileExists.
+        - Reads the file content using FlowMasterClasses.flmngr.ReadFile.
+        - Sends an HTTP response with the file content if the file exists.
+        - Sends a 404 Not Found response if the file does not exist.
+        - Sends a 500 Internal Server Error response if an unexpected error occurs.
+    Logging:
+        - Logs a warning if the file is not found.
+        - Logs an error if an exception occurs while sending the file.
+        - Logs an info message when the file is successfully sent.
     """
 
     content_type = "text/html"
@@ -360,10 +419,16 @@ def SendFile(file_path: str, client_socket):
 
 def HandleQueueRequest(client_socket):
     """
-    Handle requests for queue statistics.
-    Sends JSON-formatted queue data to the client.
+    Handles an HTTP request to retrieve queue statistics and sends the response back to the client.
     Args:
-        client_socket (socket): The client's socket connection.
+        client_socket (socket.socket): The socket object representing the client connection.
+    Behavior:
+        - Retrieves the current queue statistics by calling the `GetQueueData` function.
+        - Constructs an HTTP response with a 200 OK status, JSON content type, and CORS headers.
+        - Sends the JSON-encoded queue statistics as the response body to the client.
+        - Logs the action using the `LOGGER.LogInfo` method.
+    Note:
+        This function assumes that `GetQueueData` and `LOGGER.LogInfo` are defined elsewhere in the code.
     """
     queue = GetQueueData()  # Get current queue statistics
 
@@ -381,10 +446,16 @@ def HandleQueueRequest(client_socket):
 
 def HandleStatsRequest(client_socket):
     """
-    Handle requests for monitoring statistics.
-    Sends JSON-formatted monitoring data to the client.
+    Handles an HTTP request to retrieve monitoring statistics.
+    This function retrieves current monitoring data, formats it as an HTTP
+    response with JSON content, and sends it back to the client. It also
+    includes custom headers such as the total number of active users and
+    allows cross-origin requests for dashboard compatibility.
     Args:
-        client_socket (socket): The client's socket connection.
+        client_socket (socket.socket): The socket object representing the
+        client connection.
+    Returns:
+        None
     """
     stats = GetMonitoringData()  # Get current monitoring statistics
 
@@ -403,15 +474,29 @@ def HandleStatsRequest(client_socket):
 
 def HandleUserRequest(client_socket, file_path, port):
     """
-    Handle incoming user HTTP requests based on the server type and request path.
-    This function decodes the request, identifies the client, updates activity tracking,
-    and routes the request to the appropriate handler function.
+    Handles incoming user requests on a given socket, processes the request, and sends an appropriate response.
     Args:
-        client_socket (socket): The client's socket connection.
-        file_path (str): Path to the file to serve (if applicable).
-        port (int): The port number this request was received on.
+        client_socket (socket.socket): The socket object representing the client connection.
+        file_path (str): The file path to serve content from.
+        port (int): The port number on which the request is being handled.
     Returns:
-        bool: True if request was handled successfully, False otherwise.
+        bool: True if the request was handled successfully, False otherwise.
+    Behavior:
+        - Validates the service and monitoring server status.
+        - Reads and decodes the HTTP request data from the client socket.
+        - Checks if the client socket is still valid.
+        - Extracts the `client_id` from the request data, if present.
+        - Handles blocked users by sending a redirect to a disconnect page or a 403 Forbidden response.
+        - Tracks new or returning client connections.
+        - Processes heartbeat requests to update the client's last active time and sends a minimal response.
+        - Handles client leave requests by removing the client from the active user list and sending a confirmation response.
+        - Routes requests to a target port if the request is received on the routing server port.
+        - Updates the client's last active time for content server requests and serves the requested file.
+        - Logs errors and warnings for socket timeouts or other exceptions.
+        - Ensures the client socket is closed after processing the request.
+    Exceptions:
+        - Handles `socket.timeout` and logs a warning.
+        - Logs any other exceptions that occur during request handling.
     """
     try:
         if not SERVICE_USERS or not MONITOR_SERVER:
@@ -512,15 +597,32 @@ def HandleUserRequest(client_socket, file_path, port):
 
 def HandleMonitorRequest(client_socket, file_path, port):
     """
-    Handle incoming monitor HTTP requests based on the server type and request path.
-    This function decodes the request, identifies the client, updates activity tracking,
-    and routes the request to the appropriate handler function.
+    Handles incoming HTTP requests from a client socket and processes them based on the request path and method.
     Args:
-        client_socket (socket): The client's socket connection.
-        file_path (str): Path to the file to serve (if applicable).
-        port (int): The port number this request was received on.
+        client_socket (socket.socket): The socket object representing the client connection.
+        file_path (str): The default file path to serve if no specific path is requested.
+        port (int): The port number on which the server is listening.
     Returns:
-        bool: True if request was handled successfully, False otherwise.
+        bool: True if the request was successfully handled, False otherwise.
+    Behavior:
+        - Handles various HTTP request paths such as `/login`, `/tracker.html`, `/queue`, `/stats`, `/logout`,
+          `/disconnect`, `/user-info`, and others.
+        - Validates user sessions using cookies and redirects unauthenticated users to the login page.
+        - Serves static files like `tracker.html` and `login.html` based on the request and authentication status.
+        - Processes specific actions such as toggling server capacity, logging out users, and disconnecting users.
+        - Sends appropriate HTTP responses, including JSON responses, file content, or redirects.
+        - Logs relevant information and errors using the `LOGGER` object.
+    Exceptions:
+        - Handles `socket.timeout` and logs a warning if a timeout occurs.
+        - Catches and logs any other exceptions that occur during request handling.
+        - Ensures the client socket is closed in the `finally` block to release resources.
+    Notes:
+        - The function relies on several global variables and helper functions such as `SERVICE_USERS`,
+          `MONITOR_SERVER`, `USER_SESSION_MANAGER`, `LOGGER`, `SendFile`, `SendRedirectToLogin`,
+          `HandleLoginRequest`, `HandleQueueRequest`, `HandleStatsRequest`, `HandleLogout`, and others.
+        - The function assumes the presence of predefined constants like `FILE_PATHS`, `SERVER_CAPS`,
+          `ACTUAL_CAPS`, `PRETEND_CAPS`, `CURRENT_USERNAME`, `AWAITING_USERS`, `DENIED_USERS`, and `PORTS`.
+        - The function processes JSON payloads for specific requests and constructs appropriate HTTP responses.
     """
     try:
         if not SERVICE_USERS or not MONITOR_SERVER:
@@ -737,10 +839,19 @@ def HandleMonitorRequest(client_socket, file_path, port):
 
 
 def SendRedirectToLogin(client_socket):
-    """Send HTTP redirect to login page
-    Args:
-        client_socket (socket): The client's socket connection.
     """
+    Sends an HTTP 302 redirect response to the client socket, directing the user to the login page.
+    Args:
+        client_socket (socket.socket): The socket object representing the client connection.
+    Behavior:
+        - Constructs an HTTP 302 response with a "Location" header pointing to the login page.
+        - Sends the response to the client socket.
+        - Logs the redirection action using the LOGGER.
+    Note:
+        Ensure that the variables `IP` and `MONITORING_PORT` are properly defined and accessible
+        within the scope of this function.
+    """
+
     redirect_response = (
         f"HTTP/1.1 302 Found\r\n"
         f"Location: http://{IP}:{MONITORING_PORT}/login.html\r\n"
@@ -752,12 +863,35 @@ def SendRedirectToLogin(client_socket):
 
 
 def HandleLoginRequest(client_socket, data):
-    """Handle login POST requests
+    """
+    Handles a login request from a client by validating the provided credentials
+    and generating a session ID upon successful authentication.
     Args:
-        client_socket (socket): The client's socket connection.
-        data (str): The HTTP request data.
+        client_socket (socket.socket): The socket object representing the client connection.
+        data (str): The HTTP request data received from the client.
     Returns:
-        bool: True if request was handled successfully.
+        bool: Always returns True to indicate the request was handled.
+    Behavior:
+        - Parses the HTTP request to extract the login credentials (username and password).
+        - Hashes the username and password for secure comparison.
+        - Validates the credentials against the `USERNAMES.user_library` dictionary.
+        - If authentication is successful:
+            - Updates the global `CURRENT_USERNAME` variable.
+            - Generates a session ID using `USER_SESSION_MANAGER.CreateSession`.
+            - Sends a success response with a session cookie and a redirect URL.
+            - Logs the successful login attempt.
+        - If authentication fails:
+            - Sends a failure response with an appropriate error message.
+            - Logs the failed login attempt.
+        - Handles exceptions by logging the error and sending a 500 Internal Server Error response.
+    Notes:
+        - The function relies on several global variables and external modules:
+            - `CURRENT_USERNAME`: A global variable to track the currently logged-in user.
+            - `USERNAMES`: A module or object containing user credentials.
+            - `USER_SESSION_MANAGER`: A module or object responsible for session management.
+            - `LOGGER`: A logging utility for recording events.
+            - `IP` and `MONITORING_PORT`: Global variables for constructing the redirect URL.
+        - The function assumes the request body is in JSON format and contains "username" and "password" keys.
     """
     global CURRENT_USERNAME  # Access the global variable
 
@@ -830,9 +964,27 @@ def HandleLoginRequest(client_socket, data):
 
 def MonitoringServer():
     """
-    Start the monitoring server that provides the dashboard and stats API.
-    This server runs on its own thread and handles requests for monitoring data.
+    Starts a monitoring server that listens for incoming client connections on a specified IP and port.
+    Each client connection is handled in a separate thread.
+    The server performs the following tasks:
+    - Binds to the specified IP address and monitoring port.
+    - Listens for incoming client connections.
+    - Accepts client connections and sets a timeout for the client socket.
+    - Stores the client socket in a global dictionary using the client's peer name as the key.
+    - Spawns a new thread to handle each client's monitoring request.
+    Global Variables:
+    - IP (str): The IP address the server binds to.
+    - MONITORING_PORT (int): The port number the server listens on.
+    - LOGGER (object): Logger instance used for logging server activities.
+    - MONITOR_SERVER (bool): Flag to control the server's running state.
+    - SOCKET_TIMEOUT (int): Timeout value for client sockets.
+    - CLIENT_SOCKETS (dict): Dictionary to store active client sockets.
+    - FILE_PATHS (dict): Dictionary containing file paths for various resources.
+    Notes:
+    - The server will continue running as long as the MONITOR_SERVER flag is set to True.
+    - Each client request is handled by the `HandleMonitorRequest` function in a separate thread.
     """
+
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
         server_socket.bind((IP, MONITORING_PORT))
         server_socket.listen()
@@ -855,10 +1007,26 @@ def MonitoringServer():
 
 def StartRoutingServer():
     """
-    Start the main routing server (load balancer).
-    This is the main entry point for clients and redirects them to the
-    least loaded content server. Runs on the main thread.
+    Starts the routing server to handle incoming client connections.
+    The server listens on a specified IP and port, accepts incoming connections,
+    and processes each routing request in a separate thread. If the time since
+    the last routing request is less than the defined delay, the server waits
+    before processing the next request.
+    Key functionality:
+    - Binds to the specified IP and port.
+    - Listens for incoming client connections.
+    - Ensures a minimum delay between handling routing requests.
+    - Processes each request in a separate thread.
+    Globals:
+        IP (str): The IP address the server binds to.
+        ROUTING_PORT (int): The port number the server listens on.
+        LOGGER (object): Logger instance for logging server activity.
+        SOCKET_TIMEOUT (float): Timeout duration for client sockets.
+        DELAY_BETWEEN_ROUTING (float): Minimum delay between routing requests.
+    Raises:
+        socket.error: If there is an issue with socket creation or binding.
     """
+
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as routing_socket:
         routing_socket.bind((IP, ROUTING_PORT))
         routing_socket.listen()
@@ -886,13 +1054,26 @@ def StartRoutingServer():
 
 def StaticServer(port, file_path, max_connections):
     """
-    Start a static content server on a specific port.
-    Each static server serves one HTML file and handles client tracking.
+    Starts a static server that listens for incoming connections on the specified port
+    and serves files from the given file path.
     Args:
-        port (int): Port number to listen on.
-        file_path (str): Path to the HTML file to serve.
-        max_connections (int): Maximum allowed concurrent connections
+        port (int): The port number on which the server will listen for incoming connections.
+        file_path (str): The path to the directory or file to be served by the static server.
+        max_connections (int): The maximum number of concurrent connections allowed.
+    Behavior:
+        - The server listens for incoming TCP connections using a socket.
+        - Logs the server's listening status, including the IP, port, and maximum connections.
+        - Handles each client request in a separate thread.
+        - Monitors the number of active connections to ensure it does not exceed the limit.
+    Notes:
+        - The server uses a global `MONITOR_SERVER` flag to determine whether to continue running.
+        - A global `USERS_LOCK` is used to synchronize access to the connection count.
+        - The `SOCKET_TIMEOUT` is applied to client sockets to prevent indefinite blocking.
+    Raises:
+        socket.error: If there is an issue with socket creation, binding, or listening.
+        Exception: If any unexpected error occurs during request handling.
     """
+
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
         server_socket.bind((IP, port))
         server_socket.listen()
@@ -915,13 +1096,25 @@ def StaticServer(port, file_path, max_connections):
 
 def StartStaticServers(max_connections=None):
     """
-    Start all static content servers in separate threads.
-    Creates one server for each port/file pair defined in PORTS and FILE_PATHS.
+    Starts multiple static servers on predefined ports with specified or default maximum connections.
+    This function initializes and starts static servers for serving files on specific ports.
+    It also starts a loading server and a disconnect server with no connection cap.
     Args:
-        max_connections (int|list): Maximum connections per server.
-                   If single int, applies to all servers.
-                   If list, specifies per-server limits.
+        max_connections (int or None, optional):
+            The maximum number of connections allowed for each server.
+            If an integer is provided, it is applied to all servers.
+            If None, a default of 10 connections is used for each server.
+    Behavior:
+        - Starts servers on ports defined in the `PORTS` list, serving files specified in `FILE_PATHS`.
+        - If `max_connections` is not provided, defaults to 10 connections per server.
+        - Starts a loading server on `LOADING_PORT` with no connection cap.
+        - Starts a disconnect server on `DISCONNECT_PORT` with no connection cap.
+    Note:
+        - The `PORTS`, `FILE_PATHS`, `LOGGER`, `LOADING_PORT`, and `DISCONNECT_PORT` variables
+          are expected to be defined globally.
+        - Each server is started in a separate thread using the `threading` module.
     """
+
     files = [FILE_PATHS["index1"], FILE_PATHS["index2"], FILE_PATHS["index3"]]
     if isinstance(max_connections, int):
         max_connections = [max_connections] * len(PORTS)
@@ -958,7 +1151,16 @@ def StartStaticServers(max_connections=None):
 
 
 def FetchCurrentUser(session_id):
-    """Fetch the current username based on the session ID."""
+    """
+    Fetches the username of the currently logged-in user based on the provided session ID.
+
+    Args:
+        session_id (str): The session ID associated with the user's session.
+
+    Returns:
+        str: The username of the current user if the session is valid.
+        None: If the session is invalid or the user is not logged in.
+    """
     if USER_SESSION_MANAGER.ValidateSession(session_id):
         return USER_SESSION_MANAGER.GetUsername(session_id)
     return None
@@ -966,9 +1168,21 @@ def FetchCurrentUser(session_id):
 
 def main():
     """
-    Main entry point for the server application.
-    Tests ports, sets up signal handling, starts all servers,
-    and manages the main thread.
+    Main function to initialize and start the FlowMaster application.
+    This function performs the following tasks:
+    1. Checks if all required ports are available using the `TestPorts` function.
+        - Logs an error and exits the program if the port test fails.
+    2. Logs server access information, including:
+        - The main server URL.
+        - The monitoring interface URL.
+        - Direct access URLs for all configured ports.
+    3. Sets up a signal handler for graceful shutdown on receiving a SIGINT signal.
+    4. Starts a background thread to update active users periodically.
+    5. Initializes and starts all static content servers in separate threads.
+    6. Starts the monitoring server in a separate thread.
+    7. Starts the routing server on the main thread.
+    Raises:
+         SystemExit: If the port test fails and the application cannot proceed.
     """
     # First check if all ports are available
     if not TestPorts():
