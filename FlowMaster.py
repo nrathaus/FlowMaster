@@ -38,7 +38,6 @@ DISCONNECT_PORT = 8888  # Port for the disconnect page
 def HandleLogout():
     global CURRENT_USERNAME  # Use the global variable
     CURRENT_USERNAME = None  # Clear the current username
-    # TO IMPLEMENT LOGIC TO DELETE SESSION COOKIE
 
 
 if len(PORTS) != len(SERVER_CAPS):
@@ -540,9 +539,6 @@ def HandleMonitorRequest(client_socket, file_path, port):
             # After the ? it is the query parameters, before is the path
             path, _ = path.split("?")
 
-        # Extract client IP for session tracking
-        client_ip = client_socket.getpeername()[0]  # TO IMPLEMENT
-
         # Check for cookies to identify session
         session_id = None
         if "Cookie:" in data:
@@ -874,7 +870,7 @@ def StartRoutingServer():
             client_socket, _ = routing_socket.accept()  # Accept incoming connections
             client_socket.settimeout(SOCKET_TIMEOUT)
 
-            current_time = time.time()  # Implement rate limiting for routing requests
+            current_time = time.time()
             time_since_last = current_time - last_routing_time
 
             # If too little time has passed since last routing, add a delay
