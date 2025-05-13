@@ -315,17 +315,30 @@ def SendFile(file_path: str, client_socket):
         content_type = "application/javascript"
 
     try:
-        with open(file_path, "rb") as file:  # Read the file content
-            content = file.read()
+        if not FlowMasterClasses.flmngr.FileExists(file_path):
+            LOGGER.LogWarning(f"File not found: {file_path}")
+            response = (
+                "HTTP/1.1 404 Not Found\r\n"
+                "Content-Type: text/plain\r\n"
+                "\r\nFile not found."
+            ).encode()
+            client_socket.sendall(response)
+            return
+
+        content = FlowMasterClasses.flmngr.ReadFile(file_path)
+        if content is None:
+            raise FileNotFoundError(f"File not found or could not be read: {file_path}")
+
+        content_bytes = content.encode() if isinstance(content, str) else content
 
         response = (
             "HTTP/1.1 200 OK\r\n"
             f"Content-Type: {content_type}\r\n"
-            f"Content-Length: {len(content)}\r\n"
+            f"Content-Length: {len(content_bytes)}\r\n"
             f"\r\n"
         ).encode()
 
-        client_socket.sendall(response + content)
+        client_socket.sendall(response + content_bytes)
         LOGGER.LogInfo(f"Sent file: {file_path}")
 
     except FileNotFoundError:

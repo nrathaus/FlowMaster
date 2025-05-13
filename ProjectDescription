@@ -85,7 +85,7 @@ PUP.db [Project Usernames Passwords] is a database file used for securely storin
 
 ## Key Components Explained:
 
-### Python Imports in `FlowMaster.py`:
+## Imported Modules and Their Usage:
 - **json**: Used for parsing and generating JSON data, facilitating communication between the server and clients (e.g., stats, login requests).
 - **signal**: Handles graceful shutdown via SIGINT (Ctrl+C), ensuring that the server can close down cleanly.
 - **socket**: Core networking library for implementing the TCP server, enabling reliable communication.
@@ -93,31 +93,95 @@ PUP.db [Project Usernames Passwords] is a database file used for securely storin
 - **threading**: Enables concurrent request handling, allowing the server to manage multiple clients simultaneously.
 - **time**: Provides timing functions for managing delays and timeouts within the server.
 - **datetime/timedelta**: Used to track user activity timestamps, ensuring accurate session management.
-- **FlowMasterClasses**: Custom classes for database interaction, logging, and session management, encapsulating essential functionalities.
+- **hashlib**: Used for hashing usernames and passwords for secure authentication.
+- **FlowMasterClasses**: Custom classes for database interaction, logging, session management, and file handling, encapsulating essential functionalities.
 
-### Python Functions in `FlowMaster.py` (Alphabetical):
-- **can_disconnect(username, USERNAMES, PERMISSIONS)**: Checks if a user has the necessary permissions to disconnect other users, enhancing security.
-- **fetchCurrentUser (session_id)**: Retrieves the username associated with a given session ID, facilitating user tracking.
-- **get_monitoring_data()**: Collects and compiles statistics for the monitoring dashboard, providing real-time insights.
-- **get_server_loads()**: Returns the current user counts per server, allowing for effective load balancing.
-- **handle_login_request(client_socket, data)**: Processes login POST requests, validating user credentials and managing sessions.
-- **handle_logout()**: Clears the current user session, ensuring that users can log out securely.
-- **handle_monitor_request(client_socket, file_path, port)**: Manages requests directed to the monitoring server, serving relevant data.
-- **handle_stats_request(client_socket)**: Serves monitoring statistics in JSON format, enabling easy integration with front-end displays.
-- **handle_user_request(client_socket, file_path, port)**: Handles requests directed to content servers, serving HTML files as needed.
-- **main()**: The entry point that starts all server components, initializing the system for operation.
-- **monitoring_server()**: Runs the monitoring dashboard server, providing real-time statistics to authorized users.
-- **select_target_port()**: Implements the load balancing algorithm, determining the best server to handle incoming requests.
-- **send_file(file_path, client_socket)**: Serves files with appropriate HTTP headers, ensuring correct content delivery.
-- **send_redirect(client_socket, port)**: Sends an HTTP redirect response to clients, directing them to the appropriate server.
-- **send_redirect_to_login(client_socket)**: Redirects clients to the login page if they are not authenticated.
-- **signal_handler(*_)**: Handles graceful shutdown signals, ensuring that the server can close down without data loss.
-- **start_routing_server()**: Implements the main load balancer, directing traffic to the appropriate content servers.
-- **start_static_servers(max_connections)**: Launches all content servers, allowing them to begin accepting client requests.
-- **static_server(port, file_path, max_connections)**: Runs a content server on a specified port, serving static HTML files.
-- **test_ports()**: Verifies that all required ports are available before starting the server, preventing conflicts.
-- **update_active_users()**: A background task that cleans up inactive users, maintaining an accurate count of active sessions.
-- **user_info()**: Endpoint to fetch the current username, facilitating user tracking and management.
+## Classes in `FlowMasterClasses.py` and Their Usage:
+
+### 1. **Class: `dtbs` "Database"**
+   - **Purpose**: Handles database interactions.
+   - **Where it's used in `FlowMaster.py`**:
+     - Instantiated twice to manage user credentials and permissions:
+       - `USERNAMES`: Stores and retrieves hashed usernames and passwords from the `UserPassPerm` table.
+       - `PERMISSIONS`: Stores and retrieves user permissions from the `Permissions` table.
+     - Example Use Cases:
+       - Validating user login credentials during `HandleLoginRequest(client_socket, data)`.
+       - Checking user permissions for actions like disconnecting other users.
+
+   - **Key Methods**:
+     - `GetSecondOfArray(username)`: Retrieves a specific permission for a user (used to check if a user can disconnect others).
+
+### 2. **Class: `usrson` "User Session"**
+   - **Purpose**: Manages user sessions.
+   - **Where it's used in `FlowMaster.py`**:
+     - Instantiated as `USER_SESSION_MANAGER` to handle session creation, validation, and destruction:
+       - Used for creating sessions during login in `HandleLoginRequest(client_socket, data)`.
+       - Validates session IDs for authenticated requests in `HandleMonitorRequest(client_socket, file_path, port)`.
+       - Destroys sessions during logout in `HandleLogout()`.
+     - Example Use Cases:
+       - Maintaining session IDs for logged-in users.
+       - Ensuring that only authenticated users can access sensitive features like server monitoring.
+
+   - **Key Methods**:
+     - `CreateSession(username)`: Generates a session ID for a user.
+     - `ValidateSession(session_id)`: Verifies if a session is still active.
+     - `DestroySession(session_id)`: Deletes a session.
+     - `GetUsername(session_id)`: Retrieves the username associated with a session.
+
+### 3. **Class: `lggr` "Logger"**
+   - **Purpose**: Provides logging functionality.
+   - **Where it's used in `FlowMaster.py`**:
+     - Instantiated as `LOGGER` to log server activities, errors, and user actions to both a file and the console:
+       - Logs critical events like server startup, shutdown, and errors.
+       - Tracks user activity, such as successful logins and failed login attempts (`HandleLoginRequest`).
+       - Logs server performance metrics and user activity updates (`UpdateActiveUsers()`).
+     - Example Use Cases:
+       - Debugging unexpected server behavior.
+       - Auditing user activities for security purposes.
+
+   - **Key Methods**:
+     - `LogInfo(message)`: Logs general information (e.g., server startup).
+     - `LogWarning(message)`: Logs warnings (e.g., socket timeouts).
+     - `LogError(message)`: Logs errors (e.g., issues with file access or database connections).
+
+### 4. **Class: `flmngr` "Filemanager"**
+   - **Purpose**: Handles file operations.
+   - **Where it's used in `FlowMaster.py`**:
+     - Used for reading, writing, and verifying the existence of files:
+       - Read HTML files to serve content (e.g., `SendFile(file_path, client_socket)`).
+       - Check if configuration files or resources exist during server initialization.
+     - Example Use Cases:
+       - Serving static HTML pages like `tracker.html`, `login.html`, and `disconnect.html`.
+       - Ensuring essential files are available before starting the server.
+
+   - **Key Methods**:
+     - `ReadFile(file_path)`: Reads and returns the content of a file (e.g., HTML files).
+     - `WriteFile(file_path, content)`: Writes content to a file.
+     - `FileExists(file_path)`: Checks if a file exists before attempting to read it.
+
+## Functions in `FlowMaster.py`:
+1. **`TestPorts()`**: Checks if all required ports are available before starting servers.
+2. **`SignalHandler(*_)`**: Handles graceful shutdown on SIGINT (Ctrl+C).
+3. **`Hash(string)`**: Generates an MD5 hash for the input string.
+4. **`UpdateActiveUsers()`**: Removes inactive users based on their last activity timestamp.
+5. **`GetServerLoads()`**: Returns the current number of active users on each server.
+6. **`GetQueueData()`**: Provides data about the current queue of users waiting to connect.
+7. **`GetMonitoringData()`**: Returns real-time statistics about server loads and the user queue.
+8. **`SelectTargetPort(client_id=None)`**: Implements load balancing by selecting the least busy server.
+9. **`SendRedirect(client_socket, port)`**: Sends an HTTP redirect response to the client.
+10. **`SendFile(file_path, client_socket)`**: Serves a file along with appropriate HTTP headers.
+11. **`HandleQueueRequest(client_socket)`**: Handles requests for queue statistics and sends them to the client.
+12. **`HandleStatsRequest(client_socket)`**: Handles requests for monitoring statistics and sends JSON data.
+13. **`HandleUserRequest(client_socket, file_path, port)`**: Manages incoming HTTP requests from users.
+14. **`HandleMonitorRequest(client_socket, file_path, port)`**: Manages incoming HTTP requests for monitoring data.
+15. **`SendRedirectToLogin(client_socket)`**: Redirects unauthenticated users to the login page.
+16. **`HandleLoginRequest(client_socket, data)`**: Processes login requests and validates user credentials.
+17. **`MonitoringServer()`**: Starts the monitoring server that provides the dashboard and stats API.
+18. **`StartRoutingServer()`**: Starts the routing server (load balancer) that redirects clients to content servers.
+19. **`StaticServer(port, file_path, max_connections)`**: Serves static HTML content on a specified port.
+20. **`StartStaticServers(max_connections=None)`**: Initializes all static content servers.
+21. **`FetchCurrentUser(session_id)`**: Retrieves the username associated with a session ID.
+22. **`main()`**: The entry point for the server application, initializing all components and servers.
 
 ### JavaScript Functions in `main.js`:
 - **createServerCard(port)**: Creates a card element for displaying statistics for a specific server port, enhancing the user interface.
@@ -161,3 +225,49 @@ PUP.db [Project Usernames Passwords] is a database file used for securely storin
 - **Log Output:** The system logs to both a file (server.log) and the console, providing multiple avenues for monitoring server activity.
 - **Log Details:** Each log entry includes timestamps and log levels, facilitating easy identification of issues and events.
 - **Event Tracking:** The logging system captures important events and errors, providing valuable data for debugging and system maintenance.
+
+## Main Components:
+
+### Python Files:
+
+1. **FlowMaster.py:**
+   - **Purpose**: This is the main server implementation that handles all core functionality of the FlowMaster system.
+   - **Functionality**:
+     - Implements the TCP protocol for reliable data transfer.
+     - Provides thread-safe mechanisms for shared resource access.
+     - Manages system signals for graceful shutdown.
+     - Tracks user sessions and activity timeouts.
+     - Records server activities and errors.
+     - Validates user credentials during login attempts.
+     - Implements load balancing and routing.
+
+2. **FlowMasterClasses.py:**
+   - **Purpose**: Encapsulates essential functionalities into reusable classes.
+   - **Functionality**:
+     - Database interaction for user authentication and permissions.
+     - Session management for user tracking and validation.
+     - Logging for debugging and audit trails.
+     - File management for reading/writing resources.
+
+### HTML Files:
+
+1. **index1.html**: Displays server statistics for Port 8000.
+2. **index2.html**: Displays server statistics for Port 8001.
+3. **index3.html**: Displays server statistics for Port 8002.
+4. **login.html**: Provides a login form for secure access.
+5. **tracker.html**: Shows real-time server statistics.
+6. **disconnect.html**: Communicates session termination.
+7. **loading.html**: Informs users when all servers are busy.
+
+## PUP.db Overview:
+PUP.db (Project Usernames Passwords) is a database used for securely storing user credentials and permissions.
+
+### Permissions Table:
+- **PermissionNum**: Unique identifier for each permission level.
+- **CanView**: Indicates whether the user can view resources.
+- **CanDisconnect**: Indicates whether the user can disconnect other users.
+
+### UserPassPerm Table:
+- **Username**: Unique username for each user.
+- **Password**: Hashed password associated with the username.
+- **Perm**: Links the user to their permission level.

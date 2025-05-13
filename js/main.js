@@ -67,9 +67,13 @@ async function disconnectUser(userId, port) {
             redirect: "manual" // prevent automatic redirect following
         });
 
+        console.log("Disconnect response status:", response.status);
+        console.log("Disconnect response headers:", [...response.headers.entries()]);
+
         if (response.status === 302) {
             // Manually handle redirect by navigating to the Location header
             const redirectUrl = response.headers.get("Location");
+            console.log("Redirect URL:", redirectUrl);
             if (redirectUrl) {
                 window.location.href = redirectUrl;
                 return;
@@ -77,19 +81,25 @@ async function disconnectUser(userId, port) {
         }
 
         if (!response.ok) {
+            const text = await response.text();
+            console.error("Disconnect response text:", text);
             throw new Error("Failed to disconnect user");
         }
 
         let result = await response.json();
+        console.log("Disconnect response JSON:", result);
 
-        if ('response' in result) {
+        // Only alert failure if response field exists and is not success
+        if ('response' in result && result.response !== "leave received") {
             alert(`Failed to disconnect user : ${result.response}`);
         }
 
         // Refresh stats immediately after disconnection
         fetchStats();
     } catch (error) {
+        console.alrt(error)
         console.error("Error disconnecting user:", error);
+        // Only alert failure if not redirected
         alert("Failed to disconnect user. Please try again.");
     }
 }
