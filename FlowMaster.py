@@ -1,15 +1,18 @@
-import json
-import signal
-import socket
-import sys
-import threading
-import time
-from datetime import datetime, timedelta
-import hashlib
-import FlowMasterClasses
+import json  # Import JSON for handling JSON data
+import signal  # Import signal for handling signals
+import socket  # Import socket for network communication
+import sys  # Import sys for system-specific parameters and functions
+import threading  # Import threading for multi-threading support
+import time  # Import time for time-related functions
+from datetime import (
+    datetime,
+    timedelta,
+)  # Import datetime and timedelta for date and time manipulation
+import hashlib  # Import hashlib for hashing data
+import FlowMasterClasses  # Import FlowMasterClasses for custom classes and functions
 
 # LOGGER INITIALIZATION
-LOGGER = FlowMasterClasses.lggr("../server.log")  # Set up logging
+LOGGER = FlowMasterClasses.lggr("../server.log")
 
 # CONFIGURATION CONSTANTS
 CURRENT_USERNAME = None  # Variable to store the current username
@@ -40,14 +43,18 @@ def HandleLogout():
     CURRENT_USERNAME = None  # Clear the current username
 
 
-if len(PORTS) != len(SERVER_CAPS):
+if len(PORTS) != len(
+    SERVER_CAPS
+):  # Check if the number of ports matches the number of server capabilities
     LOGGER.LogError("Ports and their capabilities list don't match")
-FOUND_PORTS = []
+FOUND_PORTS = []  # List to store the available ports
 for port in PORTS:
-    if port not in SERVER_CAPS:
+    if port not in SERVER_CAPS:  # Check if the port is in the server capabilities list
         LOGGER.LogError(f"Port '{port}' missing its capability")
-    FOUND_PORTS.append(port)
-if len(FOUND_PORTS) != len(PORTS):
+    FOUND_PORTS.append(port)  # Add the port to the found ports list
+if len(FOUND_PORTS) != len(
+    PORTS
+):  # Check if the number of found ports matches the number of ports
     LOGGER.LogError(
         f"Ports list contains duplicates or missing ports, found ports: {FOUND_PORTS}, vs: {PORTS}"
     )
@@ -73,10 +80,9 @@ FILE_PATHS = {
 }
 
 # SHARED STATE AND SYNCHRONIZATION
-# Track active users per port and users in queue
 AWAITING_USERS = {
     port: {} for port in PORTS + [MONITORING_PORT, LOADING_PORT, DISCONNECT_PORT]
-}
+}  # Track active users per port and users in queue
 WAITING_QUEUE = []  # List of users waiting to connect
 QUEUE_LOCK = threading.Lock()  # Lock for thread-safe queue operations
 DENIED_USERS = {}  # Track users we want to deny access
@@ -301,32 +307,36 @@ def SelectTargetPort(client_id=None):
         - Addition of a client to the waiting queue if applicable.
     """
 
-    loads = GetServerLoads()
+    loads = GetServerLoads()  # Get current load percentages of all ports
 
     percentage_occupied = []
     for port in PORTS:
-        percentage_occupied.append(loads[port] / SERVER_CAPS[port])
+        percentage_occupied.append(
+            loads[port] / SERVER_CAPS[port]
+        )  # Calculate the load percentage of each port and put it in a list
 
-    load_percentages = [f"{percent*100:.1f}%" for percent in percentage_occupied]
+    load_percentages = [
+        f"{percent*100:.1f}%" for percent in percentage_occupied
+    ]  # Convert the list of load percentages to a list of strings
     LOGGER.LogInfo(f"current loads are: {load_percentages}")
 
-    min_load = min(percentage_occupied)
+    min_load = min(percentage_occupied)  # Find the minimum load percentage
 
-    if min_load < 1:
+    if min_load < 1:  # If the minimum load is less than 100%
         min_load_ports = [
             port
             for port, percentage in zip(loads.keys(), percentage_occupied)
             if percentage == min_load
         ]
-        selected_port = min(min_load_ports)
+        selected_port = min(min_load_ports)  # Select the port with the minimum load
         LOGGER.LogInfo(f"Selected port {selected_port} with load {min_load}")
         are_all_full = False
         return selected_port
 
-    if client_id is not None:
+    if client_id is not None:  # If the minimum load is more or equal to than 100%
         with QUEUE_LOCK:
             if client_id not in WAITING_QUEUE:
-                WAITING_QUEUE.append(client_id)
+                WAITING_QUEUE.append(client_id)  # Add the client to the waiting queue
                 LOGGER.LogInfo(f"Added {client_id} to waiting queue")
     are_all_full = True
     return LOADING_PORT  # Redirect to loading page if all servers are full
@@ -343,9 +353,9 @@ def SendRedirect(client_socket, port):
     """
     redirect_response = (
         f"HTTP/1.1 302 Found\r\n" f"Location: http://{IP}:{port}/\r\n" "\r\n"
-    ).encode()
+    ).encode()  # Create the redirect response
 
-    client_socket.sendall(redirect_response)
+    client_socket.sendall(redirect_response)  # Send the redirect response to the client
     LOGGER.LogInfo(f"Sent redirect to port {port}")
 
 
@@ -373,48 +383,56 @@ def SendFile(file_path: str, client_socket):
         content_type = "application/javascript"
 
     try:
-        if not FlowMasterClasses.flmngr.FileExists(file_path):
+        if not FlowMasterClasses.flmngr.FileExists(
+            file_path
+        ):  # Check if the file exists
             LOGGER.LogWarning(f"File not found: {file_path}")
             response = (
                 "HTTP/1.1 404 Not Found\r\n"
                 "Content-Type: text/plain\r\n"
                 "\r\nFile not found."
-            ).encode()
-            client_socket.sendall(response)
+            ).encode()  # Create a 404 Not Found response
+            client_socket.sendall(
+                response
+            )  # Send a 404 response if the file is not found
             return
 
-        content = FlowMasterClasses.flmngr.ReadFile(file_path)
+        content = FlowMasterClasses.flmngr.ReadFile(file_path)  # Read the file content
         if content is None:
             raise FileNotFoundError(f"File not found or could not be read: {file_path}")
 
-        content_bytes = content.encode() if isinstance(content, str) else content
+        content_bytes = (
+            content.encode() if isinstance(content, str) else content
+        )  # Convert the content to bytes
 
         response = (
             "HTTP/1.1 200 OK\r\n"
             f"Content-Type: {content_type}\r\n"
             f"Content-Length: {len(content_bytes)}\r\n"
             f"\r\n"
-        ).encode()
+        ).encode()  # Create the HTTP response with the content type and length
 
-        client_socket.sendall(response + content_bytes)
+        client_socket.sendall(
+            response + content_bytes
+        )  # Send the HTTP response with the file content
         LOGGER.LogInfo(f"Sent file: {file_path}")
 
-    except FileNotFoundError:
+    except FileNotFoundError:  # Handle the case when the file is not found
         LOGGER.LogWarning(f"File not found: {file_path}")
         response = (
             "HTTP/1.1 404 Not Found\r\n"
             "Content-Type: text/plain\r\n"
             "\r\nFile not found."
         ).encode()
-        client_socket.sendall(response)
-    except Exception as e:
+        client_socket.sendall(response)  # Send a 404 response if the file is not found
+    except Exception as e:  # Handle any unexpected exceptions
         LOGGER.LogError(f"Error sending file: {str(e)}")
         response = (
             "HTTP/1.1 500 Internal Server Error\r\n"
             "Content-Type: text/plain\r\n"
             "\r\nServer error."
-        ).encode()
-        client_socket.sendall(response)
+        ).encode()  # Create a 500 Internal Server Error response
+        client_socket.sendall(response)  # Send a 500 response if an error occurs
 
 
 def HandleQueueRequest(client_socket):
@@ -438,9 +456,9 @@ def HandleQueueRequest(client_socket):
         f"Access-Control-Allow-Origin: *\r\n"  # Allow cross-origin requests for dashboard
         f"\r\n"
         f"{json.dumps(queue)}"  # Convert stats to JSON
-    ).encode()
+    ).encode()  # Construct the HTTP response with JSON content
 
-    client_socket.sendall(response)
+    client_socket.sendall(response)  # Send the HTTP response with the queue statistics
     LOGGER.LogInfo("Sent monitoring stats")
 
 
@@ -465,10 +483,10 @@ def HandleStatsRequest(client_socket):
         f"Access-Control-Allow-Origin: *\r\n"  # Allow cross-origin requests for dashboard
         f"X-Active-Users: {stats['total_users']}\r\n"  # Custom header with user count
         f"\r\n"
-        f"{json.dumps(stats)}"  # Convert stats to JSON
-    ).encode()
+        f"{json.dumps(stats)}"
+    ).encode()  # Construct the HTTP response with JSON content
 
-    client_socket.sendall(response)
+    client_socket.sendall(response)  # Send the HTTP response with the monitoring stats
     LOGGER.LogInfo("Sent monitoring stats")
 
 
@@ -507,21 +525,23 @@ def HandleUserRequest(client_socket, file_path, port):
             LOGGER.LogError(f"Socket already closed on port {port}")
             return False
 
-        client_id = None
+        client_id = None  # Initialize client_id to None
         if "client_id=" in data:
-            client_id = data.split("client_id=")[1].split(" ")[0]
+            client_id = data.split("client_id=")[1].split(" ")[
+                0
+            ]  # Extract client_id from request data
 
         if client_id is not None and client_id in DENIED_USERS:
             # If user has been denied access, send redirect to disconnect page
             LOGGER.LogInfo(f"Detected blocked access from {client_id} ({port})")
-            try:
+            try:  # Attempt to send redirect response
                 redirect_response = (
                     f"HTTP/1.1 302 Found\r\n"
                     f"Location: http://{IP}:{DISCONNECT_PORT}/disconnect.html\r\n"
                     f"\r\n"
                 ).encode()
-                client_socket.sendall(redirect_response)
-            except Exception as e:
+                client_socket.sendall(redirect_response)  # Send redirect response
+            except Exception as e:  # Handle any exceptions during redirect response
                 LOGGER.LogError(f"Error sending redirect to disconnect page: {str(e)}")
                 msg = "Access has been denied"
                 response = f"HTTP/1.1 403 Forbidden\r\nContent-Length: {len(msg)}\r\n\r\n{msg}".encode()
@@ -532,65 +552,67 @@ def HandleUserRequest(client_socket, file_path, port):
         if client_id is not None:
             with CLIENTS_LOCK:  # Track if this is a new or continuing connection
                 if client_id not in CONNECTED_CLIENTS:
-                    CONNECTED_CLIENTS.add(client_id)
+                    CONNECTED_CLIENTS.add(client_id)  # Add client to active user list
                 else:
-                    connection_type = "returning"
+                    connection_type = "returning"  # Mark as returning connection
 
-        # logger.log_info(f"Detected '{connection_type}' connection from {client_id} on port {port}")
-
-        if client_id is not None and "/heartbeat" in data:
+        if (
+            client_id is not None and "/heartbeat" in data
+        ):  # Check if request is a heartbeat
             with USERS_LOCK:
                 AWAITING_USERS[port][
                     client_id
                 ] = datetime.now()  # Update last active time for this client
-                active_count = len(AWAITING_USERS[port])
+                active_count = len(AWAITING_USERS[port])  # Get active user count
 
-            # Send minimal response with active user count in header
             msg = (
                 "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n"
                 f"X-Active-Users: {active_count}\r\n"
                 "Content-Length: 0\r\n\r\n"
-            ).encode()
+            ).encode()  # Send minimal response with active user count in header
 
-            client_socket.sendall(msg)
+            client_socket.sendall(msg)  # Send response with active user count
             return True
 
         if client_id is not None and "/leave" in data:  # Handle client leave requests
             with USERS_LOCK:
-                if client_id in AWAITING_USERS[port]:
-                    del AWAITING_USERS[port][client_id]
+                if client_id in AWAITING_USERS[port]:  # Check if client is active
+                    del AWAITING_USERS[port][
+                        client_id
+                    ]  # Remove client from active user list
 
             msg = json.dumps({"response": "leave received"})
             client_socket.sendall(
                 f"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {len(msg)}\r\n\r\n{msg}".encode()
-            )
+            )  # Send response to client
             return True
 
         if port == ROUTING_PORT:  # Handle routing server (load balancer) requests
             selected_port = SelectTargetPort()
-            SendRedirect(client_socket, selected_port)
+            SendRedirect(client_socket, selected_port)  # Send redirect to selected port
             return True
 
         # Handle content server requests
         if client_id is not None:
             with USERS_LOCK:
-                AWAITING_USERS[port][client_id] = datetime.now()
+                AWAITING_USERS[port][
+                    client_id
+                ] = datetime.now()  # Update last active time for this client
 
-        SendFile(file_path, client_socket)
-        # logger.log_info("handle_user_requset after send_file")
+        SendFile(file_path, client_socket)  # Send file to client
 
         return True
 
-    except socket.timeout:
+    except socket.timeout:  # Handle socket timeout
         LOGGER.LogWarning(f"Socket timeout occurred on port {port}")
-    except Exception as e:
+    except Exception as e:  # Handle other exceptions
         LOGGER.LogError(
             f"An error occurred on port while handling user request {port}: {str(e)}"
         )
-    finally:
+    finally:  # Clean up
         try:  # Always ensure the socket is closed
             client_socket.close()  # Close the socket
-        except Exception as e:
+        except Exception as e:  # Handle any exceptions during socket closure
             LOGGER.LogError(f"Error closing socket on port {port}: {str(e)}")
     return False
 
@@ -625,7 +647,7 @@ def HandleMonitorRequest(client_socket, file_path, port):
         - The function processes JSON payloads for specific requests and constructs appropriate HTTP responses.
     """
     try:
-        if not SERVICE_USERS or not MONITOR_SERVER:
+        if not SERVICE_USERS or not MONITOR_SERVER:  # Check if the service is running
             sys.exit()
 
         data = client_socket.recv(9999).decode()  # Read data from client (HTTP request)
@@ -643,16 +665,18 @@ def HandleMonitorRequest(client_socket, file_path, port):
 
         # Check for cookies to identify session
         session_id = None
-        if "Cookie:" in data:
+        if "Cookie:" in data:  # Check if cookies are present in the request
             cookie_line = [
                 line for line in data.split("\r\n") if line.startswith("Cookie:")
-            ][0]
+            ][
+                0
+            ]  # Extract the cookie line
             cookies = cookie_line.split(":", 1)[1].strip()
             cookie_parts = cookies.split(";")
-            for part in cookie_parts:
+            for part in cookie_parts:  # Extract session ID from cookies
                 if "session_id=" in part:
                     session_id = part.split("=", 1)[1].strip()
-                    break
+                    break  # Extract session ID from cookies
 
         # Check if this is a login request
         if path == "/login" and method == "POST":
@@ -709,10 +733,10 @@ def HandleMonitorRequest(client_socket, file_path, port):
             # Toggle SERVER_CAPS between ACTUAL_CAPS and PRETEND_CAPS
             if SERVER_CAPS == ACTUAL_CAPS:
                 SERVER_CAPS = PRETEND_CAPS
-                state = "full"
+                state = "full"  # Set the state to "full" to indicate that the server is full
             else:
                 SERVER_CAPS = ACTUAL_CAPS
-                state = "default"
+                state = "default"  # Reset the state to "default" to indicate that the server is not full
 
             msg = json.dumps({"response": "make_server_full received", "state": state})
             client_socket.sendall(
@@ -721,21 +745,25 @@ def HandleMonitorRequest(client_socket, file_path, port):
             return True
 
         # Logout the user
-        if "/logout" in path:
-            if not is_authenticated:
-                SendRedirectToLogin(client_socket)
+        if "/logout" in path:  # Logout
+            if not is_authenticated:  # If the user is not logged in
+                SendRedirectToLogin(client_socket)  # Redirect to log in
                 return True
 
-            HandleLogout()
-            SendRedirectToLogin(client_socket)
+            HandleLogout()  # Handle user logout
+            SendRedirectToLogin(client_socket)  # Redirect to log in
             return True
 
         if "/disconnect" in path:  # Handle client leave requests
             if (
-                not USERNAMES.GetSecondOfArray(Hash(CURRENT_USERNAME))
-                in PERMCANDISCONNECT
+                not USERNAMES.GetSecondOfArray(
+                    Hash(CURRENT_USERNAME)
+                )  # Check if the user is in the queue
+                in PERMCANDISCONNECT  # Check if the user has permission to disconnect
             ):
-                msg = json.dumps({"response": "missing permissions"})
+                msg = json.dumps(
+                    {"response": "missing permissions"}
+                )  # Send a response indicating that the user lacks permissions
                 response = (
                     "HTTP/1.1 403 Forbidden\r\n"
                     f"Content-Length: {len(msg)}\r\n"
@@ -748,7 +776,7 @@ def HandleMonitorRequest(client_socket, file_path, port):
                 return True
 
             if not is_authenticated:
-                SendRedirectToLogin(client_socket)
+                SendRedirectToLogin(client_socket)  # Redirect to log in
                 return True
 
             # Find the body inside the 'data'
@@ -760,10 +788,10 @@ def HandleMonitorRequest(client_socket, file_path, port):
                 # Parse the body - it comes as JSON
                 body_json = json.loads(body)
 
-                if "userId" in body_json:
+                if "userId" in body_json:  # Check if the user has a user ID
                     user_id = body_json["userId"]
 
-            if user_id is None:
+            if user_id is None:  # If the user ID is not in the body
                 msg = json.dumps({"response": "disconnect failed"})
                 response = (
                     "HTTP/1.1 400 Bad Request\r\n"
@@ -805,16 +833,18 @@ def HandleMonitorRequest(client_socket, file_path, port):
                 "\r\n"
             )
 
-            client_socket.sendall((headers + response_json).encode())
+            client_socket.sendall(
+                (headers + response_json).encode()
+            )  # Send the response with user info
             return True
 
         # For other requests, check authentication
         if not is_authenticated:
-            SendRedirectToLogin(client_socket)
+            SendRedirectToLogin(client_socket)  # Send redirect to login page
             return True
 
         # Default: serve the requested file
-        no_leading_slash_path = path.removeprefix("/")
+        no_leading_slash_path = path.removeprefix("/")  # Remove leading slash from path
         for _, item in FILE_PATHS.items():
             if item == no_leading_slash_path:
                 SendFile(no_leading_slash_path, client_socket)
@@ -824,16 +854,16 @@ def HandleMonitorRequest(client_socket, file_path, port):
         SendFile(file_path, client_socket)
         return True
 
-    except socket.timeout:
+    except socket.timeout:  # Handle socket timeout
         LOGGER.LogWarning(f"Socket timeout occurred on port {port}")
-    except Exception as e:
+    except Exception as e:  # Handle other exceptions
         LOGGER.LogError(
             f"An error occurred on port while handling monitor request {port}: {str(e)}"
         )
-    finally:
+    finally:  # Close the socket
         try:  # Always ensure the socket is closed
             client_socket.close()
-        except Exception as e:
+        except Exception as e:  # Handle socket close exception
             LOGGER.LogError(f"Error closing socket on port {port}: {str(e)}")
     return False
 
@@ -901,21 +931,26 @@ def HandleLoginRequest(client_socket, data):
         login_data = json.loads(body)
 
         username = login_data.get("username")
-        password = login_data.get("password")
+        password = login_data.get(
+            "password"
+        )  # Extract username and password from the request body
 
         encrypted_username = Hash(username)
-        encrypted_password = Hash(password)
+        encrypted_password = Hash(
+            password
+        )  # Hash the username and password for secure comparison
 
-        # Check credentials against USERNAMES dictionary
-        if (
+        if (  # Check credentials against USERNAMES dictionary
             encrypted_username in USERNAMES.user_library
             and USERNAMES.user_library[encrypted_username][0] == encrypted_password
         ):
-            # Update current_username when login is successful
-            CURRENT_USERNAME = username
+            CURRENT_USERNAME = (
+                username  # Update current_username when login is successful
+            )
 
-            # Generate a session ID
-            session_id = USER_SESSION_MANAGER.CreateSession(CURRENT_USERNAME)
+            session_id = USER_SESSION_MANAGER.CreateSession(
+                CURRENT_USERNAME
+            )  # Generate a session ID
             response = {
                 "success": True,
                 "message": "Login successful",
@@ -934,8 +969,7 @@ def HandleLoginRequest(client_socket, data):
             client_socket.sendall((headers + response_json).encode())
             LOGGER.LogInfo(f"User {username} logged in successfully")
             CURRENT_USERNAME = username
-        else:
-            # Send failure response
+        else:  # Send failure response
             response = {"success": False, "message": "Invalid username or password"}
             response_json = json.dumps(response)
 
@@ -950,7 +984,7 @@ def HandleLoginRequest(client_socket, data):
             LOGGER.LogInfo(f"Failed login attempt for user {username}")
 
         return True
-    except Exception as e:
+    except Exception as e:  # Handle any exceptions that occur during the login process
         LOGGER.LogError(f"Error handling login: {str(e)}")
         error_response = json.dumps({"success": False, "message": "Server error"})
         client_socket.sendall(
@@ -985,12 +1019,14 @@ def MonitoringServer():
     - Each client request is handled by the `HandleMonitorRequest` function in a separate thread.
     """
 
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
+    with socket.socket(
+        socket.AF_INET, socket.SOCK_STREAM
+    ) as server_socket:  # Create a new socket object for the server
         server_socket.bind((IP, MONITORING_PORT))
         server_socket.listen()
         LOGGER.LogInfo(f"Monitoring server listening on: {IP}:{MONITORING_PORT}")
 
-        while MONITOR_SERVER:
+        while MONITOR_SERVER:  # Continuously listen for incoming client connections
             client_socket, _ = server_socket.accept()  # Accept incoming connections
             client_socket.settimeout(SOCKET_TIMEOUT)
             Client_PeerName = f"{client_socket.getpeername()}"
@@ -1002,7 +1038,7 @@ def MonitoringServer():
                     FILE_PATHS["login"],
                     MONITORING_PORT,  # Default to login page
                 )
-            ).start()
+            ).start()  # Start a new thread to handle the request
 
 
 def StartRoutingServer():
@@ -1027,23 +1063,30 @@ def StartRoutingServer():
         socket.error: If there is an issue with socket creation or binding.
     """
 
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as routing_socket:
-        routing_socket.bind((IP, ROUTING_PORT))
+    with socket.socket(
+        socket.AF_INET, socket.SOCK_STREAM
+    ) as routing_socket:  # Create a new socket object for the routing server
+        routing_socket.bind(
+            (IP, ROUTING_PORT)
+        )  # Bind the socket to the specified IP and port
         routing_socket.listen()
         LOGGER.LogInfo(f"Routing server listening on: {IP}:{ROUTING_PORT}")
 
-        last_routing_time = time.time()
+        last_routing_time = time.time()  # Initialize last routing time
 
-        while True:
+        while True:  # Continuously listen for incoming client connections
             client_socket, _ = routing_socket.accept()  # Accept incoming connections
             client_socket.settimeout(SOCKET_TIMEOUT)
 
             current_time = time.time()
-            time_since_last = current_time - last_routing_time
+            time_since_last = (
+                current_time - last_routing_time
+            )  # Calculate time since last routing request
 
-            # If too little time has passed since last routing, add a delay
             if time_since_last < DELAY_BETWEEN_ROUTING:
-                time.sleep(DELAY_BETWEEN_ROUTING - time_since_last)
+                time.sleep(
+                    DELAY_BETWEEN_ROUTING - time_since_last
+                )  # If too little time has passed since last routing, add a delay
 
             last_routing_time = time.time()  # Update last routing time
 
@@ -1074,20 +1117,25 @@ def StaticServer(port, file_path, max_connections):
         Exception: If any unexpected error occurs during request handling.
     """
 
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
-        server_socket.bind((IP, port))
+    with socket.socket(
+        socket.AF_INET, socket.SOCK_STREAM
+    ) as server_socket:  # Create a new socket object for the static server
+        server_socket.bind((IP, port))  # Bind the socket to the specified IP and port
         server_socket.listen()
         LOGGER.LogInfo(
             f"Static server listening on: {IP}:{port} (max connections: {max_connections})"
         )
 
-        while MONITOR_SERVER:
+        while MONITOR_SERVER:  # Continuously listen for incoming client connections
             client_socket, _ = server_socket.accept()  # Accept incoming connections
-            client_socket.settimeout(SOCKET_TIMEOUT)
+            client_socket.settimeout(
+                SOCKET_TIMEOUT
+            )  # Set a timeout for the client socket
 
-            # Check current connection count before processing
             with USERS_LOCK:
-                current_connections = len(AWAITING_USERS[port])
+                current_connections = len(
+                    AWAITING_USERS[port]
+                )  # Check current connection count before processing
 
             threading.Thread(  # Handle each request in a separate thread
                 target=lambda: HandleUserRequest(client_socket, file_path, port)
@@ -1115,35 +1163,44 @@ def StartStaticServers(max_connections=None):
         - Each server is started in a separate thread using the `threading` module.
     """
 
-    files = [FILE_PATHS["index1"], FILE_PATHS["index2"], FILE_PATHS["index3"]]
-    if isinstance(max_connections, int):
+    files = [
+        FILE_PATHS["index1"],
+        FILE_PATHS["index2"],
+        FILE_PATHS["index3"],
+    ]  # Define the files to be served by each server
+    if isinstance(
+        max_connections, int
+    ):  # If max_connections is provided, apply it to all servers
         max_connections = [max_connections] * len(PORTS)
-    elif max_connections is None:
+    elif (
+        max_connections is None
+    ):  # If max_connections is not provided, use a default of 10 connections per server
         max_connections = [10] * len(PORTS)
 
-    for port, file_path, max_conn in zip(PORTS, files, max_connections):
+    for port, file_path, max_conn in zip(
+        PORTS, files, max_connections
+    ):  # Start each server on the specified port
         LOGGER.LogInfo(
             f"Starting server on port {port} with max connections: {max_conn}"
         )
-        threading.Thread(
+        threading.Thread(  # Start a new thread for each server
             target=lambda p=port, f=file_path, m=max_conn: StaticServer(p, f, m)
         ).start()
 
-    # Start loading server on LOADING_PORT with no connection cap
     LOGGER.LogInfo(
         f"Starting loading server on port {LOADING_PORT} with no max connections"
     )
-    threading.Thread(
+    threading.Thread(  # Start a new thread for the loading server
         target=lambda: StaticServer(
             LOADING_PORT, FILE_PATHS["loading"], max_connections=1000000
         )
-    ).start()
+    ).start()  # Start loading server on LOADING_PORT with no connection cap
 
     # Start disconnect server on DISCONNECT_PORT with no connection cap
     LOGGER.LogInfo(
         f"Starting disconnect server on port {DISCONNECT_PORT} with no max connections"
     )
-    threading.Thread(
+    threading.Thread(  # Start a new thread for the disconnect server
         target=lambda: StaticServer(
             DISCONNECT_PORT, FILE_PATHS["disconnect"], max_connections=1000000
         )
@@ -1161,7 +1218,9 @@ def FetchCurrentUser(session_id):
         str: The username of the current user if the session is valid.
         None: If the session is invalid or the user is not logged in.
     """
-    if USER_SESSION_MANAGER.ValidateSession(session_id):
+    if USER_SESSION_MANAGER.ValidateSession(
+        session_id
+    ):  # Check if the session is valid
         return USER_SESSION_MANAGER.GetUsername(session_id)
     return None
 
@@ -1184,32 +1243,33 @@ def main():
     Raises:
          SystemExit: If the port test fails and the application cannot proceed.
     """
-    # First check if all ports are available
-    if not TestPorts():
+    if not TestPorts():  # First check if all ports are available
         LOGGER.LogError("Port test failed! Please check if ports are available.")
-        sys.exit()
+        sys.exit()  # Exit the program if the port test fails
 
-    # Log access information
     LOGGER.LogInfo(f"Server accessible at: http://{IP}:{ROUTING_PORT}")
     LOGGER.LogInfo(f"Monitoring interface at: http://{IP}:{MONITORING_PORT}")
     LOGGER.LogInfo(
         f"Direct access ports: {', '.join(f'http://{IP}:{port}' for port in PORTS)}"
-    )
+    )  # Log access information
 
-    # Set up signal handler for graceful shutdown
-    signal.signal(signal.SIGINT, SignalHandler)
+    signal.signal(
+        signal.SIGINT, SignalHandler
+    )  # Set up signal handler for graceful shutdown
 
-    # Start background task for updating active users
-    threading.Thread(target=UpdateActiveUsers, daemon=True).start()
+    threading.Thread(
+        target=UpdateActiveUsers, daemon=True
+    ).start()  # Start background task for updating active users
 
-    # Start all content servers in separate threads
-    StartStaticServers([SERVER_CAPS[port] for port in PORTS])
+    StartStaticServers(
+        [SERVER_CAPS[port] for port in PORTS]
+    )  # Start all content servers in separate threads
 
-    # Start monitoring server in a separate thread
-    threading.Thread(target=MonitoringServer, daemon=True).start()
+    threading.Thread(
+        target=MonitoringServer, daemon=True
+    ).start()  # Start monitoring server in a separate thread
 
-    # Start routing server on the main thread
-    StartRoutingServer()
+    StartRoutingServer()  # Start routing server on the main thread
 
 
 # Entry point when script is run directly

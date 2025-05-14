@@ -1,9 +1,14 @@
-const MONITORED_PORTS = [8000, 8001, 8002];
+const MONITORED_PORTS = [8000, 8001, 8002]; // Ports to monitor
 const UPDATE_INTERVAL = 2500; // 2.5 seconds
 const HISTORY_LENGTH = 120; // Store 5 minutes of data
-let trafficHistory = [];
+let trafficHistory = []; // Array to store traffic history
 
-// Modified createServerCard function to include user disconnect buttons
+/**
+ * Creates a server card element for a given port.
+ *
+ * @param {number} port - The port number for which the server card is created.
+ * @returns {HTMLDivElement} The server card element containing server details.
+ */
 function createServerCard(port) {
     const card = document.createElement("div");
     card.className = "stats-card";
@@ -19,7 +24,13 @@ function createServerCard(port) {
     return card;
 }
 
-// New function to create user list items with disconnect buttons
+/**
+ * Creates an HTML string for a user list item with a disconnect button.
+ *
+ * @param {string} userId - The unique identifier of the user.
+ * @param {number} port - The port number associated with the user.
+ * @returns {string} An HTML string representing the user list item.
+ */
 function createUserListItem(userId, port) {
     return `
                 <div class="user-item">
@@ -30,7 +41,20 @@ function createUserListItem(userId, port) {
                 </div>
             `;
 }
-// Get current user information
+
+/**
+ * Asynchronously fetches the current user's information from the server
+ * and updates the DOM element with the user's username.
+ *
+ * Fetches data from the "/user-info" endpoint and handles both successful
+ * and error responses. If the fetch is successful, the username is displayed
+ * in the element with the ID "currentUser". If an error occurs, "Error" is
+ * displayed instead.
+ *
+ * @async
+ * @function fetchCurrentUser
+ * @returns {Promise<void>} Resolves when the user information is fetched and the DOM is updated.
+ */
 async function fetchCurrentUser() {
     try {
         console.log("Fetching user info...");
@@ -52,7 +76,17 @@ async function fetchCurrentUser() {
     }
 }
 
-// New function to handle user disconnection
+/**
+ * Disconnects a user from a specified port by sending a POST request to the server.
+ * Handles manual redirection if the server responds with a 302 status code.
+ * Logs response details and alerts the user in case of failure.
+ * 
+ * @async
+ * @function disconnectUser
+ * @param {string} userId - The ID of the user to disconnect.
+ * @param {number} port - The port from which the user should be disconnected.
+ * @throws {Error} Throws an error if the disconnection fails and no redirection occurs.
+ */
 async function disconnectUser(userId, port) {
     try {
         const response = await fetch("/disconnect", {
@@ -104,7 +138,20 @@ async function disconnectUser(userId, port) {
     }
 }
 
-// Modified update logic in fetchStats to include disconnect buttons
+/**
+ * Fetches server statistics asynchronously, processes the data, and updates the UI.
+ * 
+ * This function retrieves statistics from the `/stats` endpoint, filters out the host IP,
+ * and updates various UI elements such as total users, server statuses, active users,
+ * and user lists. It also maintains a history of traffic data points and updates graphs.
+ * 
+ * In case of an error during the fetch operation, it logs the error and updates the UI
+ * to reflect the inactive status for monitored ports.
+ * 
+ * @async
+ * @function fetchStats
+ * @throws {Error} Throws an error if the fetch operation fails or the response is not OK.
+ */
 async function fetchStats() {
     try {
         const response = await fetch(`/stats`);
@@ -177,7 +224,17 @@ async function fetchStats() {
     }
 }
 
-// Function to filter out the host IP from stats
+/**
+ * Filters out a specific server IP from the user data of each server and updates the active user counts.
+ * 
+ * @param {Object} data - The input data containing server and user information.
+ * @param {Object} data.servers - An object where keys are server ports and values are server data.
+ * @param {Array} data.servers[].users - An array of user IDs connected to the server.
+ * @param {number} data.servers[].active_users - The number of active users on the server.
+ * @param {number} data.total_users - The total number of users across all servers.
+ * 
+ * @returns {Object} A new object with the filtered user data and updated user counts.
+ */
 function filterHostIp(data) {
     // Create a deep copy of the data
     const filteredData = JSON.parse(JSON.stringify(data));
@@ -211,7 +268,21 @@ function filterHostIp(data) {
     return filteredData;
 }
 
-// Previous graph drawing functions remain the same
+/**
+ * Draws a line graph on an SVG element based on the provided data and options.
+ *
+ * @param {string} svgId - The ID of the SVG element where the graph will be drawn.
+ * @param {Array<Object>} data - An array of data points, where each point is an object containing values for the graph.
+ * @param {Object} options - Configuration options for the graph.
+ * @param {Array<Object>} options.lines - An array of line configurations. Each line object should have:
+ *   @param {string} options.lines[].key - The key in the data points to use for this line.
+ *   @param {string} options.lines[].color - The color of the line.
+ *   @param {number} [options.lines[].width=1] - The width of the line (optional).
+ * @param {number} [options.maxValue] - The maximum value for the Y-axis. If not provided, it will be calculated from the data.
+ * @param {function} [options.formatValue] - A function to format Y-axis labels. Receives a number and returns a string.
+ *
+ * @throws {Error} Throws an error if the SVG element with the given ID is not found.
+ */
 function drawLineGraph(svgId, data, options) {
     const svg = document.getElementById(svgId);
     const width = svg.clientWidth;
@@ -286,6 +357,28 @@ function drawLineGraph(svgId, data, options) {
     });
 }
 
+/**
+ * Draws a stacked area graph on an SVG element with the given data.
+ *
+ * @param {string} svgId - The ID of the SVG element where the graph will be drawn.
+ * @param {Array<Object>} data - The data to be visualized, where each object represents a point in time.
+ * @param {string} data[].timestamp - The timestamp for the data point.
+ * @param {number} data[].total - The total value for the data point (used for percentage calculations).
+ * @param {number} data[].port8000 - The value for port 8000 at the data point.
+ * @param {number} data[].port8001 - The value for port 8001 at the data point.
+ * @param {number} data[].port8002 - The value for port 8002 at the data point.
+ *
+ * @description
+ * This function creates a stacked area graph by calculating percentages for each data point
+ * and stacking the areas for different keys (e.g., port8000, port8001, port8002). It also
+ * draws axes, grid lines, and labels for better visualization.
+ *
+ * The graph is scaled to fit the dimensions of the SVG element, with padding applied to
+ * ensure proper spacing for labels and axes.
+ *
+ * The function assumes the data array is sorted by time and contains at least two points.
+ * If the data array is empty or contains fewer than two points, the graph will not be drawn.
+ */
 function drawStackedAreaGraph(svgId, data) {
     const svg = document.getElementById(svgId);
     const width = svg.clientWidth;
@@ -302,7 +395,7 @@ function drawStackedAreaGraph(svgId, data) {
     const yScale = (value) =>
         height - padding - (value * (height - 2 * padding)) / 100;
 
-    // Draw axes and grid (keep existing axes code...)
+    // Draw axes and grid - keep existing axes code
     const axisColor = "#ccc";
     svg.innerHTML += `
                 <line x1="${padding}" y1="${height - padding}" x2="${width - rightPadding
@@ -311,7 +404,7 @@ function drawStackedAreaGraph(svgId, data) {
         }" stroke="${axisColor}" />
             `;
 
-    // Keep existing grid lines and labels code...
+    // Keep existing grid lines and labels code
     for (let i = 0; i <= 5; i++) {
         const y = padding + (i * (height - 2 * padding)) / 5;
         const value = 100 - i * 20;
@@ -325,7 +418,7 @@ function drawStackedAreaGraph(svgId, data) {
                 `;
     }
 
-    // Keep existing time labels code...
+    // Keep existing time labels code
     for (let i = 0; i < data.length; i += 24) {
         if (i < data.length) {
             const x = xScale(i);
@@ -378,6 +471,16 @@ function drawStackedAreaGraph(svgId, data) {
     });
 }
 
+/**
+ * Updates various graphs on the dashboard with the latest traffic history data.
+ * 
+ * This function updates three types of graphs:
+ * 1. Total connections graph: Displays the total number of connections over time.
+ * 2. Individual server connections graph: Displays the connections for individual servers (ports 8000, 8001, and 8002) over time.
+ * 3. Percentage distribution graph: Displays the percentage distribution of connections across servers.
+ * 
+ * The graphs are updated using the `drawLineGraph` and `drawStackedAreaGraph` functions.
+ */
 function updateGraphs() {
     // Update total connections graph
     drawLineGraph("totalConnectionsGraph", trafficHistory, {
@@ -401,6 +504,18 @@ function updateGraphs() {
 
 let serverFullState = false; // false means default caps, true means pretend caps (full)
 
+/**
+ * Toggles the server state between "full" and "default caps" by sending a POST request
+ * to the "/make_server_full" endpoint. Updates the UI button text based on the server state.
+ * 
+ * @function make_server_full
+ * @returns {void}
+ * 
+ * @description
+ * - Sends a POST request to toggle the server state.
+ * - Updates the `serverFullState` variable and the button text based on the response.
+ * - Logs an error to the console if the request fails.
+ */
 function make_server_full() {
     fetch("/make_server_full", {
         method: "POST",
@@ -420,7 +535,14 @@ function make_server_full() {
         });
 }
 
-// Logout function
+/**
+ * Logs the user out by sending a POST request to the server's logout endpoint.
+ * If the logout is successful, the user is redirected to the login page.
+ * If the logout fails, an error message is displayed.
+ *
+ * @function
+ * @returns {void}
+ */
 function logout() {
     fetch("/logout", {
         method: "POST",
@@ -443,9 +565,21 @@ function logout() {
         });
 }
 
-// Handle window resize
-window.addEventListener("resize", updateGraphs);
+window.addEventListener("resize", updateGraphs); // Update graphs on window resize
 
+/**
+ * Initializes the page when it loads.
+ * 
+ * - Retrieves the server's IP address from the current hostname and updates the relevant DOM elements.
+ * - Dynamically creates server cards for each monitored port and appends them to the stats container.
+ * - Fetches initial server statistics and sets up regular polling to update the stats.
+ * 
+ * Dependencies:
+ * - `MONITORED_PORTS`: An array of ports to monitor.
+ * - `createServerCard(port)`: A function that generates a server card element for a given port.
+ * - `fetchStats()`: A function that fetches and updates server statistics.
+ * - `UPDATE_INTERVAL`: The interval (in milliseconds) for polling server statistics.
+ */
 function onPageLoad() {
     // Get the server IP address
     const serverIp = window.location.hostname;
@@ -464,4 +598,4 @@ function onPageLoad() {
     // Set up regular polling
     setInterval(fetchStats, UPDATE_INTERVAL);
 }
-document.addEventListener("DOMContentLoaded", onPageLoad);
+document.addEventListener("DOMContentLoaded", onPageLoad); // Call onPageLoad when the DOM is fully loaded

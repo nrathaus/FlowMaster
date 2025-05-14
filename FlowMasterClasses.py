@@ -22,26 +22,24 @@ class dtbs:
 
     def __init__(self, db_file_path, rows_array, table_name):
         self.user_library = {}
-        try:
-            # Connect to the SQLite database
-            conn = sqlite3.connect(db_file_path)
+        try:  # Attempt to connect to the SQLite database
+            conn = sqlite3.connect(db_file_path)  # Connect to the SQLite database
             cursor = conn.cursor()
 
-            # Create a proper comma-separated list of columns
-            columns = ", ".join(rows_array)
+            columns = ", ".join(
+                rows_array
+            )  # Create a proper comma-separated list of columns
 
             # Use parameterized query to avoid SQL injection
             # Use proper string formatting for table name (can't use parameters for table names)
             query = f"SELECT {columns} FROM {table_name}"
 
-            # Execute the query
-            cursor.execute(query)
+            cursor.execute(query)  # Execute the query
             rows = cursor.fetchall()
 
             # Process each row and add to the dictionary
             for row in rows:
-                # Convert row values based on content
-                converted_values = []
+                converted_values = []  # List to hold converted values
                 for value in row[1:]:
                     # Handle string type conversions
                     if isinstance(value, str):
@@ -51,9 +49,9 @@ class dtbs:
                         elif value.upper() == "FALSE":
                             converted_values.append(False)
                         else:
-                            converted_values.append(value)
+                            converted_values.append(value)  # Append other strings as is
                     else:
-                        converted_values.append(value)
+                        converted_values.append(value)  # Append other types as is
 
                 # Add to the dictionary with converted values
                 if len(converted_values) == 1:
@@ -61,12 +59,11 @@ class dtbs:
                 else:
                     self.user_library[row[0]] = tuple(converted_values)
 
-            # Close the connection
-            conn.close()
+            conn.close()  # Close the connection
 
-        except sqlite3.Error as e:
+        except sqlite3.Error as e:  # Handle SQLite errors
             print(f"SQLite error: {e}")
-        except Exception as e:
+        except Exception as e:  # Handle other exceptions
             print(f"Error: {e}")
 
     def GetSecondOfArray(self, username):
@@ -82,9 +79,9 @@ class dtbs:
                     if the username exists in the user_library.
             int: -1 if the username does not exist in the user_library.
         """
-        if username in self.user_library:
-            return self.user_library[username][1]
-        else:
+        if username in self.user_library:  # Check if username exists
+            return self.user_library[username][1]  # Return the second element
+        else:  # If username does not exist
             return -1
 
 
@@ -273,13 +270,13 @@ class flmngr:
         Logs:
             Logs an error message if the file is not found or if any other exception occurs.
         """
-        try:
+        try:  # Attempt to open the file in read mode
             with open(file_path, "r") as file:
                 return file.read()
-        except FileNotFoundError:
+        except FileNotFoundError:  # Handle file not found error
             logging.error(f"File not found: {file_path}")
             return None
-        except Exception as e:
+        except Exception as e:  # Handle other exceptions
             logging.error(f"Error reading file {file_path}: {str(e)}")
             return None
 
@@ -295,10 +292,10 @@ class flmngr:
         Raises:
             Exception: Logs an error if there is an issue writing to the file.
         """
-        try:
+        try:  # Attempt to open the file in write mode
             with open(file_path, "w") as file:
                 file.write(content)
-        except Exception as e:
+        except Exception as e:  # Handle exceptions during file writing
             logging.error(f"Error writing to file {file_path}: {str(e)}")
 
     @staticmethod
@@ -312,8 +309,8 @@ class flmngr:
         Returns:
             bool: True if the file exists, False otherwise.
         """
-        try:
+        try:  # Attempt to open the file in read mode
             with open(file_path, "r"):
                 return True
-        except FileNotFoundError:
+        except FileNotFoundError:  # Handle file not found error
             return False

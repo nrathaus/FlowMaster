@@ -6,7 +6,6 @@
     <meta charset="UTF-8">
     <title>Server Stats - Port 8000</title>
     <style>
-        /* Dark mode styles */
         body {
             background-color: #121212;
             color: #ddd;
@@ -19,8 +18,6 @@
             border-radius: 5px;
             color: #ddd;
         }
-
-        /* Add styling for the client ID display */
         .client-id {
             background-color: #333;
             padding: 8px;
@@ -33,7 +30,6 @@
 </head>
 
 <body>
-    <!-- Add client ID display at the top -->
     <div class="client-id">
         Client ID: <span id="displayClientId">Loading...</span>
     </div>
@@ -55,7 +51,6 @@
         const clientId = Math.random().toString(36).substring(2);
         const port = 8000;
 
-        // Add this line to display the client ID
         document.getElementById('displayClientId').textContent = clientId;
 
         let failedHeartbeatCount = 0;
