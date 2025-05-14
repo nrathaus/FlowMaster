@@ -12,7 +12,7 @@ import hashlib  # Import hashlib for hashing data
 import FlowMasterClasses  # Import FlowMasterClasses for custom classes and functions
 
 # LOGGER INITIALIZATION
-LOGGER = FlowMasterClasses.lggr("../server.log")
+LOGGER = FlowMasterClasses.Logger("../server.log")
 
 # CONFIGURATION CONSTANTS
 CURRENT_USERNAME = None  # Variable to store the current username
@@ -98,10 +98,10 @@ CLIENTS_LOCK = (
 )  # Lock to protect the connected_clients set during concurrent access
 
 # Initialize the database and user session manager
-USERNAMES = FlowMasterClasses.dtbs(
+USERNAMES = FlowMasterClasses.DataBases(
     "PUP.db", ["Username", "Password", "Perm"], "UserPassPerm"
 )  # Allowed usernames for logins
-PERMISSIONS = FlowMasterClasses.dtbs(
+PERMISSIONS = FlowMasterClasses.DataBases(
     "PUP.db", ["PermissionNum", "CanView", "CanDisconnect"], "Permissions"
 )  # Allowed permissions
 PERMCANDISCONNECT = [
@@ -109,7 +109,7 @@ PERMCANDISCONNECT = [
     for key, perm in PERMISSIONS.user_library.items()
     if len(perm) > 1 and perm[1] == True
 ]  # Permissions that allow disconnecting users
-USER_SESSION_MANAGER = FlowMasterClasses.usrson()  # Manage user sessions
+USER_SESSION_MANAGER = FlowMasterClasses.UserSession()  # Manage user sessions
 
 
 def TestPorts():
@@ -367,8 +367,8 @@ def SendFile(file_path: str, client_socket):
         client_socket: The socket object used to send the HTTP response.
     Behavior:
         - Determines the content type based on the file extension.
-        - Checks if the file exists using FlowMasterClasses.flmngr.FileExists.
-        - Reads the file content using FlowMasterClasses.flmngr.ReadFile.
+        - Checks if the file exists using FlowMasterClasses.FileManager.FileExists.
+        - Reads the file content using FlowMasterClasses.FileManager.ReadFile.
         - Sends an HTTP response with the file content if the file exists.
         - Sends a 404 Not Found response if the file does not exist.
         - Sends a 500 Internal Server Error response if an unexpected error occurs.
@@ -383,7 +383,7 @@ def SendFile(file_path: str, client_socket):
         content_type = "application/javascript"
 
     try:
-        if not FlowMasterClasses.flmngr.FileExists(
+        if not FlowMasterClasses.FileManager.FileExists(
             file_path
         ):  # Check if the file exists
             LOGGER.LogWarning(f"File not found: {file_path}")
@@ -397,7 +397,7 @@ def SendFile(file_path: str, client_socket):
             )  # Send a 404 response if the file is not found
             return
 
-        content = FlowMasterClasses.flmngr.ReadFile(file_path)  # Read the file content
+        content = FlowMasterClasses.FileManager.ReadFile(file_path)  # Read the file content
         if content is None:
             raise FileNotFoundError(f"File not found or could not be read: {file_path}")
 

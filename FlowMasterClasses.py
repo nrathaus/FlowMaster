@@ -4,16 +4,16 @@ import uuid
 from datetime import datetime
 
 
-# Class 1 - DaTaBaSe
-class dtbs:
+# Class 1 - DataBase
+class DataBase:
     """
-    A class to interact with an SQLite database and store data in a dictionary format.
+    A class to interact with an SQLite DataBase and store data in a dictionary format.
     Attributes:
-        user_library (dict): A dictionary where keys are the first column values from the database
+        user_library (dict): A dictionary where keys are the first column values from the DataBase
                              and values are either a single converted value or a tuple of converted values.
     Methods:
         __init__(db_file_path, rows_array, table_name):
-            Initializes the dtbs object by connecting to the SQLite database, executing a query,
+            Initializes the dtbs object by connecting to the SQLite DataBase, executing a query,
             and populating the user_library dictionary with processed data.
         GetSecondOfArray(username):
             Retrieves the second element of the tuple associated with the given username in the user_library.
@@ -22,8 +22,8 @@ class dtbs:
 
     def __init__(self, db_file_path, rows_array, table_name):
         self.user_library = {}
-        try:  # Attempt to connect to the SQLite database
-            conn = sqlite3.connect(db_file_path)  # Connect to the SQLite database
+        try:  # Attempt to connect to the SQLite DataBase
+            conn = sqlite3.connect(db_file_path)  # Connect to the SQLite DataBase
             cursor = conn.cursor()
 
             columns = ", ".join(
@@ -85,11 +85,11 @@ class dtbs:
             return -1
 
 
-# Class 2 - USeR SessiON
-class usrson:
+# Class 2 - UserSession
+class UserSession:
     """
     usrson Class
-    This class manages user sessions, allowing for the creation, validation,
+    This class manages UserSessions, allowing for the creation, validation,
     retrieval, and destruction of sessions.
     Methods:
         __init__():
@@ -178,15 +178,15 @@ class usrson:
 
 
 # Class 3 - LoGGeR
-class lggr:
+class Logger:
     """
-    lggr is a logging utility class that provides methods for logging messages at different levels
+    Logger is a logging utility class that provides methods for logging messages at different levels
     (INFO, WARNING, ERROR) to both a file and the console.
     Attributes:
         None
     Methods:
         __init__(log_file_path):
-            Initializes the lggr class by setting up logging configuration with a specified log file path.
+            Initializes the Logger class by setting up logging configuration with a specified log file path.
         LogInfo(message):
             Logs an informational message.
         LogWarning(message):
@@ -236,10 +236,10 @@ class lggr:
         logging.error(message)
 
 
-# Class 4 - FiLeMaNaGeR
-class flmngr:
+# Class 4 - FileManager
+class FileManager:
     """
-    flmngr
+    FileManager
     A utility class for file management operations, providing static methods to read, write,
     and check the existence of files.
     Methods:
