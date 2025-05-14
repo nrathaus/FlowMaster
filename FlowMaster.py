@@ -20,9 +20,9 @@ IP = socket.gethostbyname(
 )  # Get the local machine's IP address automatically
 PORTS = [8000, 8001, 8002]  # Ports for content servers
 ACTUAL_CAPS = {
-    8000: 60,
-    8001: 150,
-    8002: 90,
+    8000: 600,
+    8001: 1500,
+    8002: 900,
 }  # Maximal amount of Connections allowed to connect to each port
 PRETEND_CAPS = {
     8000: 1,

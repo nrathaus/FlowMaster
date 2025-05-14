@@ -6,20 +6,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Disconnected</title>
     <style>
+        /* Dark mode styles */
         body {
             font-family: Arial, sans-serif;
             text-align: center;
             padding: 50px;
-            background-color: #f5f5f5;
+            background-color: #121212;
+            color: #ddd;
         }
 
         h1 {
-            color: #d9534f;
+            color: #ef5350;
         }
 
         p {
             font-size: 18px;
             margin: 20px 0;
+        }
+
+        a {
+            color: #66bb6a;
         }
     </style>
 </head>
@@ -27,7 +33,10 @@
 <body>
     <h1>You've been disconnected</h1>
     <p>Your session has ended. Please log in again to continue.</p>
-    <a href="http://192.168.56.1:8080">Return to routing page</a>
+    <a id="routing-link" href="#">Return to routing page</a>
+    <script>
+        document.getElementById('routing-link').href = "http://" + window.location.hostname + ":8080";
+    </script>
 </body>
 
 </html>
