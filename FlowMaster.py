@@ -98,10 +98,10 @@ CLIENTS_LOCK = (
 )  # Lock to protect the connected_clients set during concurrent access
 
 # Initialize the database and user session manager
-USERNAMES = FlowMasterClasses.DataBases(
+USERNAMES = FlowMasterClasses.DataBase(
     "PUP.db", ["Username", "Password", "Perm"], "UserPassPerm"
 )  # Allowed usernames for logins
-PERMISSIONS = FlowMasterClasses.DataBases(
+PERMISSIONS = FlowMasterClasses.DataBase(
     "PUP.db", ["PermissionNum", "CanView", "CanDisconnect"], "Permissions"
 )  # Allowed permissions
 PERMCANDISCONNECT = [
