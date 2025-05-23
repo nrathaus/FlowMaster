@@ -11,7 +11,7 @@
             margin: 20px auto;
             padding: 0 20px;
             background-color: #121212;
-            color: #ddd;
+            color: #fff; /* Changed from #ddd to #fff */
         }
         .stats-container {
             display: grid;
@@ -27,7 +27,7 @@
         }
         .stats-card h2 {
             margin-top: 0;
-            color: #eee;
+            color: #fff; /* Changed from #eee to #fff */
             font-size: 1.2em;
             display: flex;
             align-items: center;
@@ -48,7 +48,7 @@
         .user-list {
             margin-top: 10px;
             font-size: 0.9em;
-            color: #aaa;
+            color: #fff; /* Changed from #aaa to #fff */
         }
         .user-item {
             display: flex;
@@ -99,6 +99,7 @@
             display: flex;
             align-items: center;
             gap: 5px;
+            color: #fff; /* Added white color to legend text */
         }
         .legend-color {
             width: 20px;
@@ -106,7 +107,7 @@
         }
         .x-axis-label {
             font-size: 12px;
-            fill: #aaa;
+            fill: #fff; /* Changed from #aaa to #fff for graph axis labels */
         }
         .area {
             opacity: 0.7;
@@ -125,6 +126,7 @@
 
         .filter-info p {
             margin: 0;
+            color: #fff; /* Changed from default to #fff */
         }
 
         .filter-badge {
@@ -132,7 +134,17 @@
             border-radius: 4px;
             padding: 4px 8px;
             font-weight: bold;
-            color: #ddd;
+            color: #fff; /* Changed from #ddd to #fff */
+        }
+
+        /* Additional styles to ensure all text is white */
+        h1, h2, h3, p, span, div {
+            color: #fff;
+        }
+
+        /* Ensure SVG text elements are white */
+        svg text {
+            fill: #fff !important;
         }
     </style>
     <script src="/js/main.js"></script>
@@ -223,6 +235,36 @@
     </div>
 
     <div class="stats-container" id="statsContainer"></div>
+
+    <script>
+        // Add inline script to ensure any dynamically created SVG text elements are white
+        document.addEventListener('DOMContentLoaded', function() {
+            // Function to set all SVG text to white
+            function setAllSvgTextToWhite() {
+                const allSvgTexts = document.querySelectorAll('svg text');
+                allSvgTexts.forEach(text => {
+                    text.style.fill = '#fff';
+                });
+            }
+            
+            // Initial call
+            setAllSvgTextToWhite();
+            
+            // Set up observer to handle dynamically added SVG elements
+            const observer = new MutationObserver(mutations => {
+                setAllSvgTextToWhite();
+            });
+            
+            // Observe all SVG elements
+            document.querySelectorAll('svg').forEach(svg => {
+                observer.observe(svg, { 
+                    childList: true,
+                    subtree: true,
+                    attributes: true
+                });
+            });
+        });
+    </script>
 </body>
 
 </html>
